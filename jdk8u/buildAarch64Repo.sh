@@ -47,6 +47,7 @@ git checkout -b dev
 # Apply our patches
 git am $PATCHES/company_name.patch
 git am $PATCHES/0001-Set-vendor-information.patch
+git am $PATCHES/MacOS-debug-symbols-support.patch
 
 # Update dev to head
 cd $SCRIPT_DIR
@@ -78,6 +79,7 @@ cd $REPO
 git checkout release
 git am --exclude common/autoconf/generated-configure.sh $PATCHES/company_name.patch
 git am $PATCHES/0001-Set-vendor-information.patch
+git am $PATCHES/MacOS-debug-symbols-support.patch
 
 chmod +x ./common/autoconf/autogen.sh
 ./common/autoconf/autogen.sh
