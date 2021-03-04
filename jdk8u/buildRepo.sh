@@ -42,6 +42,7 @@ git checkout -b dev
 
 # Apply our patches
 git am $PATCHES/company_name.patch
+git am $PATCHES/MacOS-debug-symbols-support.patch
 
 # Update dev to jdk8u192-b12
 cd "$SCRIPT_DIR"
@@ -83,6 +84,7 @@ git checkout release
 git am $PATCHES/company_name.patch
 git am $PATCHES/ppc64le_1.patch
 git am $PATCHES/ppc64le_2.patch
+git am $PATCHES/MacOS-debug-symbols-support.patch
 
 createTag "jdk8u181-b13"
 
