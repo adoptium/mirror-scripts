@@ -35,7 +35,7 @@ function cloneGitHubRepo() {
   cd "$WORKSPACE" || exit 1
   # If we don't have a $GITHUB_REPO locally then clone it from AdoptOpenJDK/openjdk-$GITHUB_REPO.git
   if [ ! -d "$GITHUB_REPO" ] ; then
-    git clone git@github.com:AdoptOpenJDK/openjdk-"$GITHUB_REPO" "$GITHUB_REPO" || exit 1
+    git clone "$REPO" "$GITHUB_REPO" || exit 1
   fi
 }
 
@@ -184,6 +184,7 @@ checkArgs $#
 
 SKARA_REPO="https://github.com/openjdk/$1"
 GITHUB_REPO="$1"
+REPO=${2:-"git@github.com:AdoptOpenJDK/openjdk-$GITHUB_REPO"}
 BRANCH="master"
 
 # Example TAG_SEARCH="jdk-14*+*"
