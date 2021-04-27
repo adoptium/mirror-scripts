@@ -18,9 +18,9 @@ index 5c36460..92cd3df 100644
 -#define VENDOR "Oracle Corporation"
 -#define VENDOR_URL "http://java.oracle.com/"
 -#define VENDOR_URL_BUG "http://bugreport.sun.com/bugreport/"
-+#define VENDOR "Adoptium"
++#define VENDOR "Eclipse Foundation"
 +#define VENDOR_URL "https://adoptium.net/"
-+#define VENDOR_URL_BUG "https://github.com/adoptium/temurin-build/issues"
++#define VENDOR_URL_BUG "https://github.com/adoptium/adoptium-support/issues"
  #endif
  
  #define JAVA_MAX_SUPPORTED_VERSION 52
