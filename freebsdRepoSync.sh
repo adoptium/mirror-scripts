@@ -51,7 +51,7 @@ fetchParent() {
 
 # Merge in changes from the parent
 mergeRepo() {
-	git merge -m "Merge from AdoptOpenJDK ${SYNC_BRANCH}" upstream/${SYNC_BRANCH} || exit 1
+	git merge -m "Merge from Adoptium ${SYNC_BRANCH}" upstream/${SYNC_BRANCH} || exit 1
 }
 
 # Push
