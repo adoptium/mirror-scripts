@@ -35,7 +35,7 @@ The Adoptium mirrors also have two vendor branches for AdoptOpenJDK to apply any
 **Note For Developers:** Any Adoptium Patches must be done on the "release" branch, they will be auto-merged nightly into "dev".
 
 The script merges the appropriate latest merged "master" branch code into both "dev" and "release", it also ensures all the
-"AdoptOpenJDK Patches" from the "release" branch are merged into the "dev" branch.
+"Adoptium Patches" from the "release" branch are merged into the "dev" branch.
 
 The flow for the merge process is:
 ```
