@@ -29,7 +29,7 @@ set -euo pipefail
 
 function checkArgs() {
   if [ $# -lt 3 ]; then
-     echo Usage: "$0" '[AdoptOpenJDK Git Repo Version] [OpenJDK Mercurial Root Forest] [OpenJDK Mercurial Version]'
+     echo Usage: "$0" '[Adoptium Git Repo Version] [OpenJDK Mercurial Root Forest] [OpenJDK Mercurial Version]'
      echo ""
      echo "e.g. ./diff-without-getsource.sh jdk10u jdk-updates jdk10u"
      echo ""
@@ -48,10 +48,10 @@ function cleanUp() {
 }
 
 function cloneRepos() {
-  echo "AdoptOpenJDK Git Repo Version: ${git_repo_version}"
+  echo "Adoptium Git Repo Version: ${git_repo_version}"
   echo "OpenJDK Mercurial Repo Version: ${hg_root_forest}/${hg_repo_version}"
 
-  git clone -b master "https://github.com/AdoptOpenJDK/openjdk-${git_repo_version}.git" openjdk-git || exit 1
+  git clone -b master "https://github.com/adoptium/${git_repo_version}.git" openjdk-git || exit 1
   hg clone "https://hg.openjdk.java.net/${hg_root_forest}/${hg_repo_version}" openjdk-hg || exit 1
 }
 

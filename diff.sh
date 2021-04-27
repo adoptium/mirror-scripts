@@ -16,10 +16,10 @@
 ################################################################################
 # diff
 #
-# For finding the diff between an AdoptOpenJDK Git repo and the OpenJDK Mercurial
+# For finding the diff between an Adoptium Git repo and the OpenJDK Mercurial
 # Repo for Java versions <= jdk9u
 #
-# 1. Clones the AdoptOpenJDK Git repo for a particular version
+# 1. Clones the Adoptium Git repo for a particular version
 # 2. Clones the OpenJDK Mercurial repo for that same version
 # 3. Runs a diff between the two
 #
@@ -50,10 +50,10 @@ function cleanUp() {
 }
 
 function cloneRepos() {
-  echo "AdoptOpenJDK Git Repo Version: ${git_repo_version}"
+  echo "Adoptium Git Repo Version: ${git_repo_version}"
   echo "OpenJDK Mercurial Repo Version: ${hg_root_forest}/${hg_repo_version}"
 
-  git clone -b master "https://github.com/AdoptOpenJDK/openjdk-${git_repo_version}.git" openjdk-git || exit 1
+  git clone -b master "https://github.com/adoptium/${git_repo_version}.git" openjdk-git || exit 1
   hg clone "https://hg.openjdk.java.net/${hg_root_forest}/${hg_repo_version}" openjdk-hg || exit 1
 
   if [ -n "${tag}" ]; then

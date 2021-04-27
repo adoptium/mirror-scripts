@@ -130,7 +130,7 @@ function rebuildLocalRepo() {
     #
     # 3. Set up remotes on $REPO
     #     Remotes should look as follows:
-    #       upstream: git@github.com:AdoptOpenJDK/openjdk-jdk8u.git (or aarch)
+    #       upstream: git@github.com:adoptium/jdk8u.git (or aarch)
     #       root:     "$MIRROR/root/"
     #       origin:   "$MIRROR/root/"
     #

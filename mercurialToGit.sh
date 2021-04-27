@@ -18,7 +18,7 @@
 #
 # Local setup of the Git clone of a OpenJDK mercurial repository
 #
-# Initial repo will be pushed to git@github.com:AdoptOpenJDK/openjdk-$GITHUB_REPO.git
+# Initial repo will be pushed to git@github.com:adoptium/$GITHUB_REPO.git
 #
 # TODO Make the location of the git push a parameter
 #
@@ -93,9 +93,9 @@ jdk11plus_sort_tags_cmd="grep -v _openj9 | grep -v _adopt | sed 's/jdk-/jdk./g' 
 
 function cloneGitHubRepo() {
   cd "$WORKSPACE" || exit 1
-  # If we don't have a $GITHUB_REPO locally then clone it from AdoptOpenJDK/openjdk-$GITHUB_REPO.git
+  # If we don't have a $GITHUB_REPO locally then clone it from adoptium/$GITHUB_REPO.git
   if [ ! -d "$GITHUB_REPO" ] ; then
-    git clone git@github.com:AdoptOpenJDK/openjdk-"$GITHUB_REPO".git "$GITHUB_REPO" || exit 1
+    git clone git@github.com:adoptium/"$GITHUB_REPO".git "$GITHUB_REPO" || exit 1
   fi
 }
 
