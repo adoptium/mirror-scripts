@@ -184,7 +184,7 @@ checkArgs $#
 
 SKARA_REPO="https://github.com/openjdk/$1"
 GITHUB_REPO="$1"
-REPO=${2:-"git@github.com:AdoptOpenJDK/$GITHUB_REPO"}
+REPO=${2:-"git@github.com:adoptium/$GITHUB_REPO"}
 BRANCH="master"
 
 # Example TAG_SEARCH="jdk-14*+*"
