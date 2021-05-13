@@ -21,6 +21,7 @@ git fetch --all --no-tags
 
 if git rev-parse -q --verify "dev" ; then
   git checkout dev
+  git reset --hard upsteam/dev
 else
   git checkout -b dev upstream/dev || git checkout -b dev
 fi
