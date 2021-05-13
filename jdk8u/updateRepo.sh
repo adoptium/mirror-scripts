@@ -21,7 +21,6 @@ git fetch --all --no-tags
 
 if git rev-parse -q --verify "dev" ; then
   git checkout dev
-  git pull
 else
   git checkout -b dev upstream/dev || git checkout -b dev
 fi
