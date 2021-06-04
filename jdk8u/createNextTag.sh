@@ -36,7 +36,7 @@ git am --abort || true
 if git show-ref refs/heads/release; then
     git checkout release
 else
-    git checkout -b release
+    git checkout -b release upstream/release || git checkout -b release
 fi
 git reset --hard
 
