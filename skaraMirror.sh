@@ -200,7 +200,7 @@ TAG_SEARCH="jdk-${GITHUB_REPO//[!0-9]/}*+*"
 jdk11plus_tag_sort1="sort -t+ -k2,2n"
 # Second, (stable) sort on (V), (W), (X), (P): P(Patch) is optional and defaulted to "0"
 jdk11plus_tag_sort2="sort -t. -k2,2n -k3,3n -k4,4n -k5,5n"
-jdk11plus_sort_tags_cmd="grep -v _adopt | sed 's/jdk-/jdk./g' | sed 's/+/.0.0+/g' | $jdk11plus_tag_sort1 | nl | $jdk11plus_tag_sort2 | sed 's/\.0\.0+/+/g' | cut -f2- | sed 's/jdk./jdk-/g'"
+jdk11plus_sort_tags_cmd="grep -v _adopt | sed 's/jdk-/jdk./g' | sed 's/+/.0.0+/g' | $jdk11plus_tag_sort1 | nl -n rz | $jdk11plus_tag_sort2 | sed 's/\.0\.0+/+/g' | cut -f2- | sed 's/jdk./jdk-/g'"
 
 cloneGitHubRepo
 addSkaralUpstream
