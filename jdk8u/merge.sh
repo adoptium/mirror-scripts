@@ -130,7 +130,7 @@ function rebuildLocalRepo() {
     #
     # 3. Set up remotes on $REPO
     #     Remotes should look as follows:
-    #       upstream: git@github.com:AdoptOpenJDK/openjdk-jdk8u.git (or aarch)
+    #       upstream: git@github.com:adoptium/jdk8u.git (or aarch)
     #       root:     "$MIRROR/root/"
     #       origin:   "$MIRROR/root/"
     #
@@ -247,7 +247,11 @@ commitId=$(git rev-list -n 1  $tag)
 cd "$REPO"
 git merge --abort || true
 git rebase --abort || true
-git checkout $workingBranch
+if git rev-parse -q --verify "$workingBranch" ; then
+  git checkout $workingBranch
+else
+  git checkout -b $workingBranch upstream/$workingBranch || git checkout -b $workingBranch
+fi
 
 # Get rid of existing tag that we are about to create
 if [ "$doTagging" == "true" ]; then
@@ -278,7 +282,7 @@ fi
 cd "$REPO"
 for module in "${MODULES[@]}" ; do
     set +e
-    git subtree pull -q -m "Merge $module at $tag" --prefix=$module "$MIRROR/$module/" $tag
+    git subtree pull -q -m "Merge $module at $tag" --prefix=$module "$MIRROR/$module/" $tag || git subtree add --prefix=$module "$MIRROR/$module/" $tag
 
     if [ $? != 0 ]; then
       if [ "$acceptUpstream" == "true" ]; then

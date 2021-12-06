@@ -33,7 +33,7 @@ function checkArgs() {
 
 function cloneGitHubRepo() {
   cd "$WORKSPACE" || exit 1
-  # If we don't have a $GITHUB_REPO locally then clone it from AdoptOpenJDK/openjdk-$GITHUB_REPO.git
+  # If we don't have a $GITHUB_REPO locally then clone it from adoptium/$GITHUB_REPO.git
   if [ ! -d "$GITHUB_REPO" ] ; then
     git clone "$REPO" "$GITHUB_REPO" || exit 1
   fi
@@ -184,7 +184,7 @@ checkArgs $#
 
 SKARA_REPO="https://github.com/openjdk/$1"
 GITHUB_REPO="$1"
-REPO=${2:-"git@github.com:AdoptOpenJDK/openjdk-$GITHUB_REPO"}
+REPO=${2:-"git@github.com:adoptium/$GITHUB_REPO"}
 BRANCH="master"
 
 # Example TAG_SEARCH="jdk-14*+*"
@@ -192,20 +192,15 @@ TAG_SEARCH="jdk-${GITHUB_REPO//[!0-9]/}*+*"
 
 # JDK11+ tag sorting:
 # We use sort and tail to choose the latest tag in case more than one refers the same commit.
-# Versions tags are formatted: jdk-V[.W[.X]]+B; with V, W, X, B being numeric.
-# Transform "-" to "." in tag so we can sort as: "jdk.V[.W[.X]]+B"
-#
-# Example: jdk-11.0.2+2, jdk-11.0.1+3, jdk-11.0.2+1
-# Sort by "B": jdk-11.0.2+1, jdk-11.0.2+2, jdk-11.0.1+3
-# Then, "Stable" sort by V.W.X: jdk-11.0.1+3, jdk-11.0.2+1, jdk-11.0.2+2
-# Latest = jdk-11.0.2+2
-#
+# Versions tags are formatted: jdk-V[.W[.X[.P]]]+B; with V, W, X, P, B being numeric.
+# Transform "-" to "." in tag so we can sort as: "jdk.V[.W[.X[.P]]]+B"
+# Transform "+" to ".0.+" during the sort so that .P (patch) is defaulted to "0" for those
+# that don't have one, and the trailing "." to terminate the 5th field from the +
 # First, sort on build number (B):
-jdk11plus_tag_sort1="sort -t+ -k2n"
-# Second, (stable) sort on (V), (W), (X):
-jdk11plus_tag_sort2="sort -t. -k2n -k3n -k4n -s"
-jdk11plus_sort_tags_cmd="grep -v _adopt | sed 's/jdk-/jdk./g' | $jdk11plus_tag_sort1 | $jdk11plus_tag_sort2 | sed 's/jdk./jdk-/g'"
-
+jdk11plus_tag_sort1="sort -t+ -k2,2n"
+# Second, (stable) sort on (V), (W), (X), (P): P(Patch) is optional and defaulted to "0"
+jdk11plus_tag_sort2="sort -t. -k2,2n -k3,3n -k4,4n -k5,5n"
+jdk11plus_sort_tags_cmd="grep -v _adopt | sed 's/jdk-/jdk./g' | sed 's/+/.0.0+/g' | $jdk11plus_tag_sort1 | nl -n rz | $jdk11plus_tag_sort2 | sed 's/\.0\.0+/+/g' | cut -f2- | sed 's/jdk./jdk-/g'"
 
 cloneGitHubRepo
 addSkaralUpstream
