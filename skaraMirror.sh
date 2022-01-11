@@ -23,10 +23,10 @@ WORKSPACE=$SCRIPT_DIR/workspace
 # TODO generalise this for the non adopt build farm case
 function checkArgs() {
   if [ "$1" -lt 1 ]; then
-     echo Usage: "$0" '[jdk14|jdk14u]'
+     echo Usage: "$0" '[jdk8u|jdk17u]'
      echo "Skara Repo supplied should match a repository in https://github.com/openjdk/"
-     echo "For example, to mirror https://github.com/openjdk/jdk14"
-     echo "e.g. $0 jdk14"
+     echo "For example, to mirror https://github.com/openjdk/jdk17u"
+     echo "e.g. $0 jdk17u"
      exit 1
   fi
 }
@@ -82,11 +82,11 @@ function performMergeIntoReleaseFromMaster() {
   git fetch --all --tags
 
   buildTags=$(git tag --merged origin/"$BRANCH" $TAG_SEARCH || exit 1)
-  sortedBuildTags=$(echo "$buildTags" | eval "$jdk11plus_sort_tags_cmd" || exit 1)
+  sortedBuildTags=$(echo "$buildTags" | eval "$jdk_sort_tags_cmd" || exit 1)
 
   if ! git checkout -f release ; then
     if ! git rev-parse -q --verify "origin/release" ; then
-      currentBuildTag=$(echo "$buildTags" | eval "$jdk11plus_sort_tags_cmd" | tail -1 || exit 1)
+      currentBuildTag=$(echo "$buildTags" | eval "$jdk_sort_tags_cmd" | tail -1 || exit 1)
       git checkout -b release $currentBuildTag || exit 1
     else
       git checkout -b release origin/release || exit 1
@@ -96,7 +96,7 @@ function performMergeIntoReleaseFromMaster() {
   fi
 
   releaseTags=$(git tag --merged release $TAG_SEARCH || exit 1)
-  currentReleaseTag=$(echo "$releaseTags" | eval "$jdk11plus_sort_tags_cmd" | tail -1 || exit 1)
+  currentReleaseTag=$(echo "$releaseTags" | eval "$jdk_sort_tags_cmd" | tail -1 || exit 1)
   echo "Current release build tag: $currentReleaseTag"
 
   # Merge any new builds since current release build tag
@@ -131,7 +131,7 @@ function performMergeIntoReleaseFromMaster() {
   fi
 
   releaseTags=$(git tag --merged release $TAG_SEARCH || exit 1)
-  currentReleaseTag=$(echo "$releaseTags" | eval "$jdk11plus_sort_tags_cmd" | tail -1 || exit 1)
+  currentReleaseTag=$(echo "$releaseTags" | eval "$jdk_sort_tags_cmd" | tail -1 || exit 1)
   echo "New release build tag: $currentReleaseTag"
 
   git push --tags origin release || exit 1
@@ -159,7 +159,7 @@ function performMergeIntoDevFromMaster() {
   fi
 
   devTags=$(git tag --merged dev $TAG_SEARCH || exit 1)
-  currentDevTag=$(echo "$devTags" | eval "$jdk11plus_sort_tags_cmd" | tail -1 || exit 1)
+  currentDevTag=$(echo "$devTags" | eval "$jdk_sort_tags_cmd" | tail -1 || exit 1)
   echo "Current dev build tag: $currentDevTag"
 
   # Merge master "HEAD"
@@ -174,7 +174,7 @@ function performMergeIntoDevFromMaster() {
   fi
 
   devTags=$(git tag --merged dev $TAG_SEARCH || exit 1)
-  currentDevTag=$(echo "$devTags" | eval "$jdk11plus_sort_tags_cmd" | tail -1 || exit 1)
+  currentDevTag=$(echo "$devTags" | eval "$jdk_sort_tags_cmd" | tail -1 || exit 1)
   echo "New dev build tag: $currentDevTag"
 
   git push origin dev || exit 1
@@ -187,8 +187,14 @@ GITHUB_REPO="$1"
 REPO=${2:-"git@github.com:adoptium/$GITHUB_REPO"}
 BRANCH="master"
 
-# Example TAG_SEARCH="jdk-14*+*"
-TAG_SEARCH="jdk-${GITHUB_REPO//[!0-9]/}*+*"
+GITHUB_REPO_REMOVE_aarch32=${GITHUB_REPO#"aarch32"}
+VERSION=${GITHUB_REPO_REMOVE_aarch32//[!0-9]/}
+# Regex expands aarch32-jdk8u as 328
+if [[ "${VERSION}" == "8" ]]; then
+  TAG_SEARCH="jdk${VERSION}*-*"
+else
+  TAG_SEARCH="jdk-${VERSION}*+*"
+fi
 
 # JDK11+ tag sorting:
 # We use sort and tail to choose the latest tag in case more than one refers the same commit.
@@ -201,6 +207,22 @@ jdk11plus_tag_sort1="sort -t+ -k2,2n"
 # Second, (stable) sort on (V), (W), (X), (P): P(Patch) is optional and defaulted to "0"
 jdk11plus_tag_sort2="sort -t. -k2,2n -k3,3n -k4,4n -k5,5n"
 jdk11plus_sort_tags_cmd="grep -v _adopt | sed 's/jdk-/jdk./g' | sed 's/+/.0.0+/g' | $jdk11plus_tag_sort1 | nl -n rz | $jdk11plus_tag_sort2 | sed 's/\.0\.0+/+/g' | cut -f2- | sed 's/jdk./jdk-/g'"
+
+# JDK8 tag sorting:
+# We use sort and tail to choose the latest tag in case more than one refers the same commit.
+# Versions tags are formatted: jdkVu[.W]-bB; with V, W, B being numeric.
+# First, sort on build number (B):
+jdk8_tag_sort1="sort -tb -k2,2n"
+# Second, (stable) sort on (V), (W)
+jdk8_tag_sort2="sort -tu -k2,2n"
+jdk8_sort_tags_cmd="grep -v _adopt | $jdk8_tag_sort1 | nl -n rz | $jdk8_tag_sort2  | cut -f2-"
+
+
+if [[ "${VERSION}" == "8" ]]; then
+  jdk_sort_tags_cmd="${jdk8_sort_tags_cmd}"
+else
+  jdk_sort_tags_cmd="${jdk11plus_sort_tags_cmd}"
+fi
 
 cloneGitHubRepo
 addSkaralUpstream
