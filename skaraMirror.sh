@@ -95,12 +95,31 @@ function performMergeIntoReleaseFromMaster() {
     git reset --hard origin/release || echo "Not resetting as no upstream exists"
   fi
 
+  # Find the latest release tag that is not in releaseTagExcludeList
   releaseTags=$(git tag --merged release $TAG_SEARCH || exit 1)
-  currentReleaseTag=$(echo "$releaseTags" | eval "$jdk_sort_tags_cmd" | tail -1 || exit 1)
+  sortedReleaseTags=$(echo "$releaseTags" | eval "$jdk_sort_tags_cmd" || exit 1)
+  currentReleaseTag=""
+  for tag in $sortedReleaseTags; do
+    skipThisTag=false
+    # Check if tag is in the releaseTagExcludeList, if so it can't be the current tag
+    if [ -n "${releaseTagExcludeList-}" ] ; then
+      for skipTag in $releaseTagExcludeList; do
+        if [ "x$tag" == "x$skipTag" ]; then
+          echo "Skipping excluded tag $tag from current list"
+          skipThisTag=true
+        fi
+      done
+    fi
+    if [[ "$skipThisTag" == false ]]; then
+      currentReleaseTag="$tag"
+    fi
+  done
+
   echo "Current release build tag: $currentReleaseTag"
 
   # Merge any new builds since current release build tag
   foundCurrentReleaseTag=false
+  newAdoptTags=""
   for tag in $sortedBuildTags; do
     if [[ "$foundCurrentReleaseTag" == false ]]; then
       if [ "x$tag" == "x$currentReleaseTag" ]; then
@@ -122,6 +141,7 @@ function performMergeIntoReleaseFromMaster() {
         echo "Merging build tag $tag into release branch"
         git merge -m"Merging $tag into release" $tag || exit 1
         git tag -a "${tag}_adopt" -m "Merged $tag into release" || exit 1
+        newAdoptTags="${newAdoptTags} ${tag}_adopt"
       fi
     fi
   done
@@ -130,11 +150,54 @@ function performMergeIntoReleaseFromMaster() {
     git --no-pager log --oneline origin/release..release
   fi
 
+  # Find the latest and previous release tags that is not in releaseTagExcludeList
   releaseTags=$(git tag --merged release $TAG_SEARCH || exit 1)
-  currentReleaseTag=$(echo "$releaseTags" | eval "$jdk_sort_tags_cmd" | tail -1 || exit 1)
+  sortedReleaseTags=$(echo "$releaseTags" | eval "$jdk_sort_tags_cmd" || exit 1)
+  prevReleaseTag=""
+  currentReleaseTag=""
+  for tag in $sortedReleaseTags; do
+    skipThisTag=false
+    # Check if tag is in the releaseTagExcludeList, if so it can't be the current tag
+    if [ -n "${releaseTagExcludeList-}" ] ; then
+      for skipTag in $releaseTagExcludeList; do
+        if [ "x$tag" == "x$skipTag" ]; then
+          echo "Skipping excluded tag $tag from current list"
+          skipThisTag=true
+        fi
+      done
+    fi
+    if [[ "$skipThisTag" == false ]]; then
+      prevReleaseTag="${currentReleaseTag}"
+      currentReleaseTag="$tag"
+    fi
+  done
   echo "New release build tag: $currentReleaseTag"
 
   git push --tags origin release || exit 1
+
+  # Check if the last two build tags are the same commit, and ensure we have tagged both _adopt tags
+  if [ "x$prevReleaseTag" != "x" ]; then
+    prevCommit=$(git rev-list -n 1 ${prevReleaseTag})
+    currentCommit=$(git rev-list -n 1 ${currentReleaseTag})
+    if [ "${prevCommit}" == "${currentCommit}" ] ; then
+      echo "Current build tag commit is same as previous build tag commit: ${prevReleaseTag} == ${currentReleaseTag}"
+      prevReleaseAdoptTag="${prevReleaseTag}_adopt"
+      currentReleaseAdoptTag="${currentReleaseTag}_adopt"
+      if [ "$(git tag -l "$prevReleaseAdoptTag")" != "" ]; then
+        if [ "$(git tag -l "$currentReleaseAdoptTag")" == "" ]; then
+          echo "Tagging new current release tag ${currentReleaseAdoptTag} which is same commit as the previous ${prevReleaseAdoptTag}"
+          git tag -a "${currentReleaseAdoptTag}" -m "Merged ${currentReleaseTag} into release" || exit 1
+          newAdoptTags="${newAdoptTags} ${currentReleaseAdoptTag}"
+        fi
+      fi
+    fi
+  fi
+
+  # Ensure all new _adopt tags are pushed in case no new commits were pushed, eg.multiple tags on same commit
+  for tag in $newAdoptTags; do
+    echo "Pushing new tag: ${tag}"
+    git push origin ${tag} || exit 1
+  done
 }
 
 # Merge master(HEAD) into dev as we build off dev at the AdoptOpenJDK Build farm for Nightlies
