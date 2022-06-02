@@ -20,7 +20,7 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 mkdir -p $SCRIPT_DIR/workspace
 WORKSPACE=$SCRIPT_DIR/workspace
 
-# TODO generalise this for the non adopt build farm case
+# TODO generalise this for the non adoptium build farm case
 function checkArgs() {
   if [ "$1" -lt 1 ]; then
      echo Usage: "$0" '[jdk8u|jdk17u]'
@@ -70,8 +70,8 @@ function performMergeFromSkaraIntoGit() {
 }
 
 # Merge master(New tagged builds only) into release branch as we build
-# off release branch at the AdoptOpenJDK Build farm for release builds
-# release branch contains patches that AdoptOpenJDK has beyond upstream OpenJDK tagged builds
+# off release branch at the Adoptium JDK Build farm for release builds
+# release branch contains patches that Adoptium JDK has beyond upstream OpenJDK tagged builds
 function performMergeIntoReleaseFromMaster() {
 
   # Abort existing merge
@@ -119,7 +119,7 @@ function performMergeIntoReleaseFromMaster() {
 
   # Merge any new builds since current release build tag
   foundCurrentReleaseTag=false
-  newAdoptTags=""
+  newAdoptiumTags=""
   for tag in $sortedBuildTags; do
     if [[ "$foundCurrentReleaseTag" == false ]]; then
       if [ "x$tag" == "x$currentReleaseTag" ]; then
@@ -128,7 +128,7 @@ function performMergeIntoReleaseFromMaster() {
     else
       mergeTag=true
       # Check if tag is in the releaseTagExcludeList, if so do not bring it into the release branch
-      # and do not create an _adopt tag
+      # and do not create an _adoptium tag
       if [ -n "${releaseTagExcludeList-}" ] ; then
         for skipTag in $releaseTagExcludeList; do
           if [ "x$tag" == "x$skipTag" ]; then
@@ -140,8 +140,8 @@ function performMergeIntoReleaseFromMaster() {
       if [[ "$mergeTag" == true ]]; then
         echo "Merging build tag $tag into release branch"
         git merge -m"Merging $tag into release" $tag || exit 1
-        git tag -a "${tag}_adopt" -m "Merged $tag into release" || exit 1
-        newAdoptTags="${newAdoptTags} ${tag}_adopt"
+        git tag -a "${tag}_adoptium" -m "Merged $tag into release" || exit 1
+        newAdoptiumTags="${newAdoptiumTags} ${tag}_adoptium"
       fi
     fi
   done
@@ -175,33 +175,33 @@ function performMergeIntoReleaseFromMaster() {
 
   git push --tags origin release || exit 1
 
-  # Check if the last two build tags are the same commit, and ensure we have tagged both _adopt tags
+  # Check if the last two build tags are the same commit, and ensure we have tagged both _adoptium tags
   if [ "x$prevReleaseTag" != "x" ]; then
     prevCommit=$(git rev-list -n 1 ${prevReleaseTag})
     currentCommit=$(git rev-list -n 1 ${currentReleaseTag})
     if [ "${prevCommit}" == "${currentCommit}" ] ; then
       echo "Current build tag commit is same as previous build tag commit: ${prevReleaseTag} == ${currentReleaseTag}"
-      prevReleaseAdoptTag="${prevReleaseTag}_adopt"
-      currentReleaseAdoptTag="${currentReleaseTag}_adopt"
-      if [ "$(git tag -l "$prevReleaseAdoptTag")" != "" ]; then
-        if [ "$(git tag -l "$currentReleaseAdoptTag")" == "" ]; then
-          echo "Tagging new current release tag ${currentReleaseAdoptTag} which is same commit as the previous ${prevReleaseAdoptTag}"
-          git tag -a "${currentReleaseAdoptTag}" -m "Merged ${currentReleaseTag} into release" || exit 1
-          newAdoptTags="${newAdoptTags} ${currentReleaseAdoptTag}"
+      prevReleaseAdoptiumTag="${prevReleaseTag}_adoptium"
+      currentReleaseAdoptiumTag="${currentReleaseTag}_adoptium"
+      if [ "$(git tag -l "$prevReleaseAdoptiumTag")" != "" ]; then
+        if [ "$(git tag -l "$currentReleaseAdoptiumTag")" == "" ]; then
+          echo "Tagging new current release tag ${currentReleaseAdoptiumTag} which is same commit as the previous ${prevReleaseAdoptiumTag}"
+          git tag -a "${currentReleaseAdoptiumTag}" -m "Merged ${currentReleaseTag} into release" || exit 1
+          newAdoptiumTags="${newAdoptiumTags} ${currentReleaseAdoptiumTag}"
         fi
       fi
     fi
   fi
 
-  # Ensure all new _adopt tags are pushed in case no new commits were pushed, eg.multiple tags on same commit
-  for tag in $newAdoptTags; do
+  # Ensure all new _adoptium tags are pushed in case no new commits were pushed, eg.multiple tags on same commit
+  for tag in $newAdoptiumTags; do
     echo "Pushing new tag: ${tag}"
     git push origin ${tag} || exit 1
   done
 }
 
-# Merge master(HEAD) into dev as we build off dev at the AdoptOpenJDK Build farm for Nightlies
-# dev contains patches that AdoptOpenJDK has beyond upstream OpenJDK
+# Merge master(HEAD) into dev as we build off dev at the Adoptium JDK Build farm for Nightlies
+# dev contains patches that Adoptium JDK has beyond upstream OpenJDK
 function performMergeIntoDevFromMaster() {
 
   # Abort existing merge
@@ -269,7 +269,7 @@ fi
 jdk11plus_tag_sort1="sort -t+ -k2,2n"
 # Second, (stable) sort on (V), (W), (X), (P): P(Patch) is optional and defaulted to "0"
 jdk11plus_tag_sort2="sort -t. -k2,2n -k3,3n -k4,4n -k5,5n"
-jdk11plus_sort_tags_cmd="grep -v _adopt | sed 's/jdk-/jdk./g' | sed 's/+/.0.0+/g' | $jdk11plus_tag_sort1 | nl -n rz | $jdk11plus_tag_sort2 | sed 's/\.0\.0+/+/g' | cut -f2- | sed 's/jdk./jdk-/g'"
+jdk11plus_sort_tags_cmd="grep -v _adoptium | sed 's/jdk-/jdk./g' | sed 's/+/.0.0+/g' | $jdk11plus_tag_sort1 | nl -n rz | $jdk11plus_tag_sort2 | sed 's/\.0\.0+/+/g' | cut -f2- | sed 's/jdk./jdk-/g'"
 
 # JDK8 tag sorting:
 # We use sort and tail to choose the latest tag in case more than one refers the same commit.
@@ -278,7 +278,7 @@ jdk11plus_sort_tags_cmd="grep -v _adopt | sed 's/jdk-/jdk./g' | sed 's/+/.0.0+/g
 jdk8_tag_sort1="sort -tb -k2,2n"
 # Second, (stable) sort on (V), (W)
 jdk8_tag_sort2="sort -tu -k2,2n"
-jdk8_sort_tags_cmd="grep -v _adopt | $jdk8_tag_sort1 | nl -n rz | $jdk8_tag_sort2  | cut -f2-"
+jdk8_sort_tags_cmd="grep -v _adoptium | $jdk8_tag_sort1 | nl -n rz | $jdk8_tag_sort2  | cut -f2-"
 
 
 if [[ "${VERSION}" == "8" ]]; then
