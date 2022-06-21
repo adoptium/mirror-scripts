@@ -20,7 +20,7 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 mkdir -p $SCRIPT_DIR/workspace
 WORKSPACE=$SCRIPT_DIR/workspace
 
-# TODO generalise this for the non adopt build farm case
+# TODO generalise this for the non adoptium build farm case
 function checkArgs() {
   if [ "$1" -lt 1 ]; then
      echo Usage: "$0" '[jdk8u|jdk17u]'
@@ -70,8 +70,8 @@ function performMergeFromSkaraIntoGit() {
 }
 
 # Merge master(New tagged builds only) into release branch as we build
-# off release branch at the AdoptOpenJDK Build farm for release builds
-# release branch contains patches that AdoptOpenJDK has beyond upstream OpenJDK tagged builds
+# off release branch at the Adoptium JDK Build farm for release builds
+# release branch contains patches that Adoptium JDK has beyond upstream OpenJDK tagged builds
 function performMergeIntoReleaseFromMaster() {
 
   # Abort existing merge
@@ -200,8 +200,8 @@ function performMergeIntoReleaseFromMaster() {
   done
 }
 
-# Merge master(HEAD) into dev as we build off dev at the AdoptOpenJDK Build farm for Nightlies
-# dev contains patches that AdoptOpenJDK has beyond upstream OpenJDK
+# Merge master(HEAD) into dev as we build off dev at the Adoptium JDK Build farm for Nightlies
+# dev contains patches that Adoptium JDK has beyond upstream OpenJDK
 function performMergeIntoDevFromMaster() {
 
   # Abort existing merge
