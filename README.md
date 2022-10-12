@@ -4,45 +4,7 @@ These scripts are run at https://ci.adoptopenjdk.net/view/git-mirrors/ and are r
 
 ## For developers
 
-OpenJDK Source Control repositories are now managed using the GitHub (project Skara). The scripts within the projects that use Mercurial repositories
-from github.com/adoptium/jdk\<NN\>u , would not be invalidated but would be converted to Git. The existing master Mercurial repos will at least be kept as read-only archives for a defined transition period. Longer term, a Mercurial URL to Git URL translator might be put into place.
-
-There is a program put in place to convert OpenJDK Mercurial repositories to a Git repository. It uses the git-fast-import protocol to import Mercurial changesets into Git, and it adjusts existing commit messages to align with Git best practices. A commit message for the Mercurial jdk/jdk repository has this structure:
-
-JdkHgCommitMessage : BugIdLine+ SummaryLine? ReviewersLine ContributedByLine?
-
-BugIdLine : /[0-9]{8}/ ": " Text
-
-SummaryLine : "Summary: " Text
-
-ReviewersLine : "Reviewed-by: " Username (", " Username)* "\n"
-
-ContributedByLine : "Contributed-by: " Text
-
-Username : /[a-z]+/
-
-Text : /[^\n]+/ "\n"
-A commit message for the Git jdk/jdk repository will have a somewhat different structure:
-
-JdkGitCommitMessage : BugIdLine+ Body? Trailers
-
-BugIdLine : /[0-9]{8}/ ": " Text
-
-Body : BlankLine Text*
-
-Trailers : BlankLine Co-authors? Reviewers
-
-Co-authors : (BlankLine Co-author )+
-
-Co-author : "Co-authored-by: " Real-name <Email>
-
-Reviewers : "Reviewed-by: " Username (", " Username)* "\n"
-
-BlankLine = "\n"
-
-Username : /[a-z]+/
-
-Text : /[^\n]+/ "\n"
+OpenJDK Source Control repositories are now managed using the GitHub (project Skara). The Git repositories are mirrored at OpenJDK.
 
 Examples of converted repositories are available at https://github.com/openjdk/.
 
