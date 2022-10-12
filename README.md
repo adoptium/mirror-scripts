@@ -12,9 +12,6 @@ Examples of converted repositories are available at https://github.com/openjdk/.
 
 Historical information about the migration to OpenJDK GitHub from Mercurial is available at https://openjdk.org/jeps/369
 
-The **mercurialToGit.sh** script mirrors and merges the corresponding Mercurial repository into the matching Adoptium mirror:
-  - "dev"      = "master"(HEAD) + "Adoptium Patches"
-  - "release"  = "master"(latest build tag) + "Adoptium Patches"
 
 **Note For Developers:** Any Adoptium Patches must be done on the "release" branch, they will be auto-merged nightly into "dev".
 
