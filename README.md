@@ -10,15 +10,7 @@ Examples of converted repositories are available at https://github.com/openjdk/.
 
 # Skara repos and processes
 
-The migration to Github from Mercurial are available at https://openjdk.org/jeps/369
-
-The **mercurialToGit.sh** script mirrors and merges the corresponding Mercurial repository into the matching Adoptium mirror:
-```
-hg.openjdk.java.net/jdk-updates/jdk<NN>u     --->    github.com/adoptium/jdk<NN>u (master)
-hg.openjdk.java.net/jdk/jdk                  --->    github.com/adoptium/jdk(master)
-```
-This mirroring utilizes the "git-remote-hg" Mercurial fast importer plugin (https://github.com/felipec/git-remote-hg), and mirrors
-the Mercurial "default" branch to the "master" branch in the git repo.
+Historical information about the migration to OpenJDK GitHub from Mercurial is available at https://openjdk.org/jeps/369
 
 The Adoptium mirrors also have two vendor branches for Eclipse Adoptium to apply any extra patches needed:
   - "dev"      = "master"(HEAD) + "Adoptium Patches"
