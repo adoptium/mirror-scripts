@@ -10,7 +10,7 @@ Examples of converted repositories are available at https://github.com/openjdk/.
 
 # Skara repos and processes
 
-The migration to Github from Mercurial are available at https://openjdk.org/jeps/369
+Historical information about the migration to OpenJDK GitHub from Mercurial is available at https://openjdk.org/jeps/369
 
 The **mercurialToGit.sh** script mirrors and merges the corresponding Mercurial repository into the matching Adoptium mirror:
 ```
