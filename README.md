@@ -20,7 +20,6 @@ The script merges the appropriate latest merged "master" branch code into both "
 
 The flow for the merge process is:
 ```
-"Mercurial(default)" ---> "github.com(master)" -BuildTag-> "release" ---> "dev"
-                                               -HEAD-> "dev"
+"Skara upstream: https://github.com/openjdk/jdkNN(master)" ---> "Mirror: https://github.com/adoptium/jdkNN(master)" -BuildTag-> "release" ---> "dev"
 ```
 
