@@ -23,3 +23,8 @@ The flow for the merge process is:
 "Skara upstream: https://github.com/openjdk/jdkNN(master)" ---> "Mirror: https://github.com/adoptium/jdkNN(master)" -BuildTag-> "release" ---> "dev"
 ```
 
+# Remote trigger scripts and process
+
+triggerReleasePipeline.sh runs in Jenkins and only run by scheduler "0 H 17-20 1,3,4,7,9,10 1-5"
+It uses functions defined in common.sh and gets input from file releasePlan.json
+So the release champion should preper before each release by set the expected version in releasePlan.json
