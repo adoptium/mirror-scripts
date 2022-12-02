@@ -18,3 +18,8 @@ function cloneGitHubRepo() {
     cd "$GITHUB_REPO" && git fetch --all --tags
   fi
 }
+
+function readExpectedGATag() {
+    # awk sed from input jdk version to return tag
+    return expectedTag
+}

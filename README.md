@@ -26,5 +26,5 @@ The flow for the merge process is:
 # Remote trigger scripts and process
 
 triggerReleasePipeline.sh runs in Jenkins and only run by scheduler "0 H 17-20 1,3,4,7,9,10 1-5"
-It uses functions defined in common.sh and gets input from file releasePlan.json
-So the release champion should preper before each release by set the expected version in releasePlan.json
+It uses functions defined in common.sh and gets input from file releasePlan.cfg
+So the release champion should preper before each release by set the expected version in releasePlan.cfg

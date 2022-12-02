@@ -44,6 +44,16 @@ cd "$WORKSPACE/$GITHUB_REPO"
 
 # take latest -ga tag (sorted by time)
 gaTag=$(git tag --sort=-v:refname | grep '\-ga' | head -1)
+echo "latest GA tag: ${gaTag}"
+
+# read expectedTag from cfg file (releasePlan.cfg) to see if this is the correct GA tag we want for release
+expectedTag="jdk8u361" # TODO: readExpectedGATag()
+if [[ $expectedTag > $gaTag ]]; then
+  echo "$gaTag is not the GA tag we expect for this release!"
+	exit
+else
+  echo "we should proceed with $gaTag to trigger build"
+fi
 
 # from -ga tag find original commit SHA and list all tags applied onto it , exclude -ga tag and append _adopt
 scmReference=$(git rev-list -1 ${gaTag} | xargs git tag --points-at  | grep  -v '\-ga')'_adopt'
