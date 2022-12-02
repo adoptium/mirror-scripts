@@ -20,6 +20,6 @@ function cloneGitHubRepo() {
 }
 
 function readExpectedGATag() {
-    # awk sed from input jdk version to return tag
+    source releasePlan.cfg
     return expectedTag
 }
