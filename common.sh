@@ -15,7 +15,7 @@ function cloneGitHubRepo() {
   if [ ! -d "$GITHUB_REPO" ] ; then
     git clone "$REPO" "$GITHUB_REPO" || exit 1
   else
-    cd "$GITHUB_REPO" && git fetch --all --tags
+    cd "$GITHUB_REPO" && git clean -fd && git fetch --all --tags
   fi
 }
 

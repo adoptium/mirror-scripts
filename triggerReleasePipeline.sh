@@ -37,7 +37,7 @@ source ${WORKSPACE}/common.sh
 # pre-check args
 checkArgs $#
 # cleanup properties if exists from previous run
-rm -rf ${WORKSPACE}/properties
+git clean -fd # same as rm -rf ${WORKSPACE}/properties but might also clean other dirty files
 # for first time if does not have repo locally yet
 cloneGitHubRepo
 
