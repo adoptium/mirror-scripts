@@ -23,17 +23,6 @@ BRANCH="master"
 # TODO: this should be done for skaraMirror.sh too
 source ${WORKSPACE}/common.sh
 
-
-# TODO: jdk8 aarch32 case
-# GITHUB_REPO_REMOVE_aarch32=${GITHUB_REPO#"aarch32"}
-# VERSION=${GITHUB_REPO_REMOVE_aarch32//[!0-9]/}
-# Regex expands aarch32-jdk8u as 328
-# if [[ "${VERSION}" == "8" ]]; then
-#   TAG_SEARCH="jdk${VERSION}*-*"
-# else
-#   TAG_SEARCH="jdk-${VERSION}*+*"
-# fi
-
 # pre-check args
 checkArgs $#
 # cleanup properties if exists from previous run

@@ -25,6 +25,8 @@ The flow for the merge process is:
 
 # Remote trigger scripts and process
 
-triggerReleasePipeline.sh runs in Jenkins and only run by scheduler "0 H 17-20 1,3,4,7,9,10 1-5"
+triggerReleasePipeline.sh runs by Jenkins job and only run by scheduler "0 H 17-20 1,3,4,7,9,10 1-5"
+It auto triggers release-openjdkXX-pipeline, with execption on jdk8 arm32Linux.
 It uses functions defined in common.sh and gets input from file releasePlan.cfg
-So the release champion should preper before each release by set the expected version in releasePlan.cfg
+Release champion should prepare to set the expected versions in releasePlan.cfg pre-release
+Release champion should check GA tag from "https://github.com/adoptium/aarch32-jdk8u" and manual build jdk8 arm32Linux by using release-openjdk8-pipeline
