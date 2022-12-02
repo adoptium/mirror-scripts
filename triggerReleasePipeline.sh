@@ -49,7 +49,7 @@ gaTag=$(git tag --sort=-v:refname | grep '\-ga' | head -1)
 echo "latest GA tag: ${gaTag}"
 
 # read expectedTag from cfg file (releasePlan.cfg) to see if this is the correct GA tag we want for release
-expectedTag="jdk8u361" # TODO: readExpectedGATag()
+expectedTag=$(readExpectedGATag $1)
 
 # logic here is:
 # - set expected version for each jdk version
