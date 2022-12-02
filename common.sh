@@ -20,7 +20,7 @@ function cloneGitHubRepo() {
 }
 
 function readExpectedGATag() {
-    source releasePlan.cfg
+    source ${WORKSPACE}/releasePlan.cfg
     jdkVersion=$1  # e.g jdk17u
     gaTagVariable="${jdkVersion}GA" # set gaTagVariable=jdk17uGA match releasePlan.cfg
     expectedTag=${!gaTagVariable} # get value, e.g: expectedTag=jdk-17.0.6
