@@ -58,7 +58,7 @@ expectedTag="jdk8u361" # TODO: readExpectedGATag()
 # - if GA tag (e.g jdk-19.0.2+5-ga) is greater or than expected (e.g jdk-19.0.2) => this is the correct GA we need
 # - otherwise, we still need to wait for newer GA tag in repo=> exit till next hour to run job
 if [[ $expectedTag > $gaTag ]]; then
-  echo "$gaTag is not the GA tag we expect for this release!"
+  echo "$gaTag is not the GA tag we expect for this release! e.g $expectedTag-ga"
 	exit # should not continue trigger logic
 else
   echo "we should proceed with $gaTag to trigger build"

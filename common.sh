@@ -21,5 +21,5 @@ function cloneGitHubRepo() {
 
 function readExpectedGATag() {
     source releasePlan.cfg
-    return expectedTag
+    echo ${expectedTag}
 }
