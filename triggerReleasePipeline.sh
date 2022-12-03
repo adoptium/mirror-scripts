@@ -56,7 +56,7 @@ fi
 # from -ga tag find original commit SHA and list all tags applied onto it, exclude -ga tag and append _adopt
 scmReference=$(git rev-list -1 ${gaTag} | xargs git tag --points-at | grep  -v '\-ga')'_adopt'
 
-# loop with 10m sleep if git-mirror has not apply _adopt tag or merge conflict in git-mirror need to manual resolve
+# loop with 10m sleep if git-mirror has not applied the _adopt tag or if there is a merge conflict in git-mirror that we need to manual resolve
 for i in {1..5}
 do
   if [ $(git tag -l "${scmReference}") ]; then
