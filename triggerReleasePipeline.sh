@@ -19,7 +19,7 @@ GITHUB_REPO="$1"
 REPO=${2:-"https://github.com/adoptium/$GITHUB_REPO.git"}
 BRANCH="master"
 
-# to loal supporting functions
+# to local supporting functions
 # TODO: this should be done for skaraMirror.sh too
 source ${WORKSPACE}/common.sh
 
