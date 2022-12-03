@@ -50,7 +50,7 @@ if [[ $expectedTag > $gaTag ]]; then
   echo "$gaTag is not the GA tag we expect for this release! e.g $expectedTag-ga"
 	exit # should not continue trigger logic
 else
-  echo "we should proceed with $gaTag to trigger build"
+  echo "we will proceed with $gaTag to trigger build"
 fi
 
 # from -ga tag find original commit SHA and list all tags applied onto it , exclude -ga tag and append _adopt
