@@ -53,7 +53,7 @@ else
   echo "we will proceed with $gaTag to trigger build"
 fi
 
-# from -ga tag find original commit SHA and list all tags applied onto it , exclude -ga tag and append _adopt
+# from -ga tag find original commit SHA and list all tags applied onto it, exclude -ga tag and append _adopt
 scmReference=$(git rev-list -1 ${gaTag} | xargs git tag --points-at  | grep  -v '\-ga')'_adopt'
 
 # loop with 10m sleep if git-mirror has not apply _adopt tag or merge conflict in git-mirror need to manual resolve
