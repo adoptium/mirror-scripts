@@ -62,7 +62,7 @@ do
   if [ $(git tag -l "${scmReference}") ]; then
     echo "Found tag: ${scmReference}"
     # write into properties file for release pipeline to get input from
-    # existence of this file will be used in jenkins job as if should continue trigger logic
+    # existence of this properties file will be used in the jenkins job
     echo scmReference=$scmReference > ${WORKSPACE}/properties
     break # should continue trigger logic
   else
