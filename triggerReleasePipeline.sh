@@ -13,6 +13,10 @@
 # limitations under the License.
 #
 
+### Context (example):
+### upstream skara creats tags jdk8u352-b08, then add jdk8u352-ga onto the same SHA on GA day
+### skaraMirror merge jdk8u352-b08 onto release branch and tag it as jdk8u352-b08_adopt
+### official release use jdk8u352-b08_adopt
 
 SKARA_REPO="https://github.com/openjdk/$1"
 GITHUB_REPO="$1"
@@ -40,34 +44,37 @@ echo "latest GA tag: ${gaTag}"
 # read expectedTag from cfg file (releasePlan.cfg) to see if this is the correct GA tag we want for release
 expectedTag=$(readExpectedGATag $1)
 
-# logic here is:
-# - set expected version for each jdk version
-# - check in to releasePlan.cfg
-# - triggerReleasePipeline.sh get that expect version and compare with current GA tag
-# - if GA tag (e.g jdk-19.0.2+5-ga) is greater or than expected (e.g jdk-19.0.2) => this is the correct GA we need
-# - otherwise, we still need to wait for newer GA tag in repo=> exit till next hour to run job
-if [[ $expectedTag > $gaTag ]]; then
+# get the older tag name between the latest GA tag and expected tag
+olderTag=`echo -e "$expectedTag\n$gaTag" | sort -V | head -n1`
+# if GA tag (e.g jdk-19.0.2+5-ga) is greater or equal than expected (e.g jdk-19.0.2) => this is the correct GA we need
+if [[ $expectedTag == $olderTag || $expectedTag == $gaTag ]]; then
   echo "$gaTag is not the GA tag we expect for this release! e.g $expectedTag-ga"
-	exit # should not continue trigger logic
+  exit # should not continue trigger logic
 else
   echo "we will proceed with $gaTag to trigger build"
 fi
 
-# from -ga tag find original commit SHA and list all tags applied onto it, exclude -ga tag and append _adopt
-scmReference=$(git rev-list -1 ${gaTag} | xargs git tag --points-at | grep  -v '\-ga')'_adopt'
+# from -ga tag find original commit SHA then list all tags point to the this SHA(exclude -ga tag) => orignal tag(s) from skara
+# in rare case, there might be more tags than just the one we want
+scmReferenceList=$(git rev-list -1 ${gaTag} | xargs git tag --points-at  | grep  -v '\-ga')
 
 # loop with 10m sleep if git-mirror has not applied the _adopt tag or if there is a merge conflict in git-mirror that we need to manual resolve
 for i in {1..5}
 do
-  if [ $(git tag -l "${scmReference}") ]; then
-    echo "Found tag: ${scmReference}"
-    # write the scmReference into properties file so the release pipeline can read it
-    # existence of this properties file will be used in the jenkins job
-    echo scmReference=$scmReference > ${WORKSPACE}/properties
-    break # should continue trigger logic
-  else
-    echo "No ${scmReference} tag found yet, will sleep 10 minutes"
-    sleep 10m
-    git fetch --all --tags
-  fi
+  for scmReference in ${scmReferenceList[@]}; do
+    # append _adopt => release tag we should use in adoptium
+    scmReference=${scmReference}_adopt
+    # if there are multiple tags in scmReferenceList, only one with _adpot avaiable
+    if [ $(git tag -l "${scmReference}") ]; then
+      echo "Found tag: ${scmReference}"
+      # write into properties file for release pipeline to get input from
+      # existence of this file will be used in jenkins job as if should continue trigger logic
+        echo scmReference=$scmReference > ${WORKSPACE}/properties
+      break # should continue trigger logic
+    else
+      echo "No ${scmReference} tag found yet, will sleep 10 minutes and check again"
+      sleep 10m
+      git fetch --all --tags
+    fi
+  done
 done

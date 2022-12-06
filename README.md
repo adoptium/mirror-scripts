@@ -19,14 +19,16 @@ The script merges the appropriate latest merged "master" branch code into both "
 "Adoptium Patches" from the "release" branch are merged into the "dev" branch.
 
 The flow for the merge process is:
-```
-"Skara upstream: https://github.com/openjdk/jdkNN(master)" ---> "Mirror: https://github.com/adoptium/jdkNN(master)" -BuildTag-> "release" ---> "dev"
+```mermaid
+
+flowchart TD
+
+1["Skara upstream master branch:\n https://github.com/openjdk/jdkNN"] --"rebase to"--> 2["Mirror master branch:\n https://github.com/adoptium/jdkNN"] --"merge"--> 4["Mirror master branch to release branch"] --> 5["apply _adopt tag on release branch"] --"merge"--> 6["Mirror master and release to dev branch"] --> 7["push all back to origin"]
+
 ```
 
-# Remote trigger scripts and process
+# Release trigger scripts and process
 
-triggerReleasePipeline.sh runs by Jenkins job and only run by scheduler "0 H 17-20 1,3,4,7,9,10 1-5"
-It auto triggers release-openjdkXX-pipeline, with execption on jdk8 arm32Linux.
-It uses functions defined in common.sh and gets input from file releasePlan.cfg
-Release champion should prepare to set the expected versions in releasePlan.cfg pre-release
-Release champion should check GA tag from "https://github.com/adoptium/aarch32-jdk8u" and manual build jdk8 arm32Linux by using release-openjdk8-pipeline
+- triggerReleasePipeline.sh runs by Jenkins job and only run by scheduler "0 H 17-20 1,3,4,7,9,10 1-5"
+- It auto triggers release-openjdkXX-pipeline, with execption on jdk8 arm32Linux.Release champion should check GA tag from "https://github.com/adoptium/aarch32-jdk8u" and manual build jdk8 arm32Linux by using release-openjdk8-pipeline
+- It uses functions defined in common.sh and gets input from file releasePlan.cfg. Release champion should prepare to set the expected versions in releasePlan.cfg pre-release.
