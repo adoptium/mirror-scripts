@@ -35,9 +35,14 @@ source ${SCRIPT_DIR}/common.sh
 # pre-check args
 checkArgs $#
 # cleanup properties if exists from previous run
-git clean -fd # same as rm -rf ${WORKSPACE}/properties but might also clean other dirty files
+git clean -fd # same as rm -rf ${SCRIPT_DIR}/properties but might also clean other dirty files
 # for first time if does not have repo locally yet
 cloneGitHubRepo $ADOPTIUM_REPO
+
+# read expectedTag from cfg file (releasePlan.cfg) to see if this is the correct GA tag we want for release
+expectedTag=$(readExpectedGATag $JDKVERSION)
+# check if we need to proceed when expectedTag already get matched and triggered release pipeline in the past
+checkPrevious ${expectedTag}
 
 # fetch all new refs including tags from origin remote
 cd "$WORKSPACE/$JDKVERSION"
@@ -46,8 +51,7 @@ cd "$WORKSPACE/$JDKVERSION"
 gaTag=$(git tag --sort=-v:refname | grep '\-ga' | head -1)
 echo "latest GA tag: ${gaTag}"
 
-# read expectedTag from cfg file (releasePlan.cfg) to see if this is the correct GA tag we want for release
-expectedTag=$(readExpectedGATag $JDKVERSION)
+
 
 # get the older tag name between the latest GA tag and expected tag
 olderTag="$(echo -e "${expectedTag}\n${gaTag}" | sort -V | head -n1)"
@@ -61,7 +65,7 @@ fi
 
 # from -ga tag find original commit SHA then list all tags point to the this SHA(exclude -ga tag) => orignal tag(s) from skara
 # in rare case, there might be more tags than the one we want
-# convert from multiple line string into Array and use the first one only
+# convert from multiple line string into Array and use the first one from the list which is supposed to have _adopt tag
 cd "$WORKSPACE/$JDKVERSION"
 scmReferenceString="$(git rev-list -1 ${gaTag} | xargs git tag --points-at  | grep  -v '\-ga')"
 scmReferenceList=($scmReferenceString)
@@ -75,6 +79,8 @@ do
     # write into properties file for release pipeline to get input from
     # existence of this file will be used in jenkins job as if should continue trigger logic
     echo scmReference=$scmReference > ${SCRIPT_DIR}/properties
+    # also write into a tracking file which can avoid mulitple triggering to release pipeline
+    echo previousSCM=$scmReference > ${WORKSPACE}/tracking
     break # should continue trigger logic
   else
     echo "No ${scmReference} tag found yet, will sleep 10 minutes and check again"

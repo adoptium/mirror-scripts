@@ -28,6 +28,7 @@ function readExpectedGATag() {
     echo ${expectedTag}
 }
 
+# this function is not in use, due to agent does not have "jq" to parse json payload
 function queryGHAPI(){
   repo=$1 # adoptium/jdk8u, openjdk/jdk8u
   tag=$2 # jdk8u362-b05_adopt, jdk8u362-ga
@@ -38,4 +39,20 @@ function queryGHAPI(){
     echo "Cannot find tag: ${tag} in ${repo}"
   fi
   echo ${exist}
+}
+
+# to check if the same tag has been used to triggere release pipeline
+# if yes, wont trigger; if not, do the first time trigger
+function checkPrevious() {
+  if [ -f ${WORKSPACE}/tracking ]; then # already have tracking from previous
+    expectedTag=$1 #
+    trackerTag="$(awk -F'=' '{print $2}' ${WORKSPACE}/tracking)" # previousSCM=jdk-17.0.5+8_adopt
+    olderTag="$(echo -e "${expectedTag}\n${trackerTag}" | sort -V | head -n1)"
+
+    if [[ "${expectedTag}" == "${olderTag}" || "${expectedTag}" == "${trackerTag}" ]]; then
+        echo "Release tag ${trackerTag} has been used in the current release"
+        echo "Will not continue job"
+        exit 0
+    fi
+  fi  
 }
