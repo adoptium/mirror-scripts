@@ -1,7 +1,7 @@
 # TODO generalise this for the non adoptium build farm case
 function checkArgs() {
   if [ "$1" -lt 1 ]; then
-     echo Usage: "$0" '[jdk8u|jdk17u]'
+     echo Usage: "$0" '[jdk8u|jdk11u|jdk17u|dk19u|...]'
      echo "Skara Repo supplied should match a repository in https://github.com/openjdk/"
      echo "For example, to mirror https://github.com/openjdk/jdk17u"
      echo "e.g. $0 jdk17u"
@@ -46,7 +46,7 @@ function queryGHAPI(){
 function checkPrevious() {
   if [ -f ${WORKSPACE}/tracking ]; then # already have tracking from previous
     expectedTag=$1 #
-    trackerTag="$(awk -F'=' '{print $2}' ${WORKSPACE}/tracking)" # previousSCM=jdk-17.0.5+8_adopt
+    trackerTag="$(cut -d '=' -f 2 ${WORKSPACE}/tracking)" # previousSCM=jdk-17.0.5+8_adopt
     olderTag="$(echo -e "${expectedTag}\n${trackerTag}" | sort -V | head -n1)"
 
     if [[ "${expectedTag}" == "${olderTag}" || "${expectedTag}" == "${trackerTag}" ]]; then
