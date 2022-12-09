@@ -1,7 +1,7 @@
 # TODO generalise this for the non adoptium build farm case
 function checkArgs() {
   if [ "$1" -lt 1 ]; then
-     echo Usage: "$0" '[jdk8u|jdk11u|jdk17u|dk19u|...]'
+     echo Usage: "$0" '[jdk8u|jdk11u|jdk17u|jdk19u|...]'
      echo "Skara Repo supplied should match a repository in https://github.com/openjdk/"
      echo "For example, to mirror https://github.com/openjdk/jdk17u"
      echo "e.g. $0 jdk17u"
