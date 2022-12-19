@@ -29,6 +29,6 @@ flowchart TD
 
 # Release trigger scripts and process
 
-- triggerReleasePipeline.sh runs by Jenkins job and only run by scheduler "0 H 17-20 1,3,4,7,9,10 1-5"
-- It auto triggers release-openjdkXX-pipeline, with execption on jdk8 arm32Linux.Release champion should check GA tag from "https://github.com/adoptium/aarch32-jdk8u" and manual build jdk8 arm32Linux by using release-openjdk8-pipeline
-- It uses functions defined in common.sh and gets input from file releasePlan.cfg. Release champion should prepare to set the expected versions in releasePlan.cfg pre-release.
+- triggerReleasePipeline.sh runs by Jenkins job and only run by scheduler "0 H 13-20 1,3,4,7,9,10 1-5"
+- It auto triggers release-openjdkXX-pipeline, with execption on jdk8 arm32Linux. Release champion should check GA tag from "https://github.com/adoptium/aarch32-jdk8u" and manual build jdk8 arm32Linux by using release-openjdk8-pipeline
+- It uses functions defined in common.sh and gets input from file releasePlan.cfg. Release champion should prepare to set the expected versions in releasePlan.cfg pre-release. It can also be used for e2e test when we manually create tag in adoptium mirror repo (example see comments in releasePlan.cfg)
