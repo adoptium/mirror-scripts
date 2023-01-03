@@ -26,7 +26,7 @@ set -euo pipefail
 
 JDKVERSION="$1"
 ADOPTIUM_REPO=${2:-"https://github.com/adoptium/$JDKVERSION.git"}
-BRANCH=${3:-master"}
+BRANCH=${3:-"master"}
 
 # Since we have "jdk8u" in the code, we need to create another lever of "workspace"
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
@@ -48,9 +48,6 @@ cloneGitHubRepo $ADOPTIUM_REPO
 
 # read expectedTag from cfg file (releasePlan.cfg) to see if this is the correct GA tag we want for release
 expectedTag=$(readExpectedGATag $JDKVERSION)
-
-# check if we need to proceed when expectedTag already get matched and triggered release pipeline in the past
-checkPrevious ${expectedTag}
 
 # fetch all new refs including tags from origin remote
 cd "$WORKSPACE/$JDKVERSION"
@@ -79,6 +76,10 @@ scmReferenceList=($scmReferenceString)
 
 # append _adopt => release tag we use in adoptium
 scmReference="${scmReferenceList[0]}_adopt"
+
+# check if we need to proceed when scmReference has already triggered release pipeline in the past
+checkPrevious ${scmReference}
+
 # loop with 10m sleep if git-mirror has not applied the _adopt tag or if there is a merge conflict in git-mirror that we need to manual resolve
 for i in {1..5}
 do
