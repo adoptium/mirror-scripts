@@ -43,27 +43,28 @@ checkArgs $#
 # cleanup properties if exists from previous run
 git clean -fd # same as rm -rf ${SCRIPT_DIR}/properties but wont touch ${WORKSPACE}/tracking file
 
-# for first time if does not have repo locally yet
-cloneGitHubRepo $ADOPTIUM_REPO
-
 # read expectedTag from cfg file (releasePlan.cfg) to see if this is the correct GA tag we want for release
 expectedTag=$(readExpectedGATag $JDKVERSION)
 echo "Expected release tag: ${expectedTag}"
 
-# fetch all new refs including tags from origin remote
-cd "$WORKSPACE/$JDKVERSION"
-
 # get latest -ga tag (sorted by time) in repo
-latestGaTag=$(git tag --sort=-v:refname | grep '\-ga' | sort -V -r| head -1)
+latestGaTag=$(git ls-remote --sort=-v:refname --tags "${ADOPTIUM_REPO}" | grep -v "\^{}" | grep "\-ga" | tr -s "\t " " " | cut -d" " -f2 | sed "s,refs/tags/,," | sort -V -r | head -1)
 echo "Latest GA tag: ${latestGaTag}"
 
 # from -ga tag find original commit SHA then list all tags point to the this SHA(exclude -ga tag) => orignal tag(s) from skara
 # in rare case, there might be more tags than the one we want
 # convert from multiple line string into Array and use the first one from the list which is supposed to have _adopt tag
-scmReferenceString="$(git rev-list -1 ${latestGaTag} | xargs git tag --points-at  | grep  -v '\-ga')"
-scmReferenceList=($scmReferenceString)
+
+# Get SHA of commit latestGaTag points at
+gaTagCommitSHA=$(git ls-remote --tags "${ADOPTIUM_REPO}" ${latestGaTag}^{} | tr -s "\t " " " | cut -d" " -f1)
+echo "$latestGaTag commit SHA: ${gaTagCommitSHA}"
+
+# Get all non"-ga" tags pointing at gaTagCommitSHA and sort by reverse version string to get the latest
+scmReferenceLatest=$(git ls-remote --tags "${ADOPTIUM_REPO}" | grep "\^{}" | grep "${gaTagCommitSHA}" | tr -s "\t " " " | cut -d" " -f2 | sed "s,refs/tags/,," | sed "s,\^{},," | grep -v "\-ga" | sort -V -r | head -1)
+echo "Latest build tag pointing to ${gaTagCommitSHA}: ${scmReferenceLatest}"
+
 # append _adopt => release tag we use in adoptium
-scmReference="${scmReferenceList[0]}_adopt"
+scmReference="${scmReferenceLatest}_adopt"
 
 # check if we need to proceed when scmReference has already triggered release pipeline in the past
 checkPrevious ${scmReference}
@@ -82,7 +83,7 @@ fi
 # loop with 10m sleep if git-mirror has not applied the _adopt tag or if there is a merge conflict in git-mirror that we need to manual resolve
 for i in {1..5}
 do
-  if [ $(git tag -l "${scmReference}") ]; then
+  if [[ $(git ls-remote --tags "${ADOPTIUM_REPO}" "${scmReference}") ]]; then
     echo "Found tag: ${scmReference}"
     # write into properties file for release pipeline to get input from
     # existence of this file will be used in jenkins job as if should continue trigger logic
@@ -92,7 +93,6 @@ do
     break # should continue trigger logic
   else
     echo "No ${scmReference} tag found yet, will sleep 10 minutes and check again"
-    sleep 10m
-    git fetch --all --tags
+    sleep 600
   fi
 done
