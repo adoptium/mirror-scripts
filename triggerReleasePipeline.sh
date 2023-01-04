@@ -48,6 +48,7 @@ cloneGitHubRepo $ADOPTIUM_REPO
 
 # read expectedTag from cfg file (releasePlan.cfg) to see if this is the correct GA tag we want for release
 expectedTag=$(readExpectedGATag $JDKVERSION)
+echo "Expected release tag: ${expectedTag}"
 
 # fetch all new refs including tags from origin remote
 cd "$WORKSPACE/$JDKVERSION"

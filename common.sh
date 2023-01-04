@@ -45,10 +45,10 @@ function queryGHAPI(){
 # if yes, wont trigger; if not, do the first time trigger
 function checkPrevious() {
   if [ -f ${WORKSPACE}/tracking ]; then # already have tracking from previous
-    expectedTag=$1 #
-    trackerTag="$(cut -d '=' -f 2 ${WORKSPACE}/tracking)" # previousSCM=jdk-17.0.5+8_adopt
+    local scmRef=$1 # _adopt scmReference tag we have found
+    local trackerTag="$(cut -d '=' -f 2 ${WORKSPACE}/tracking)" # previousSCM=jdk-17.0.5+8_adopt
 
-    if [[ "${expectedTag}" == "${trackerTag}" ]]; then
+    if [[ "${scmRef}" == "${trackerTag}" ]]; then
         echo "Release tag ${trackerTag} has triggered a release pipeline build already in the current release"
         echo "Will not continue job"
         exit 0
