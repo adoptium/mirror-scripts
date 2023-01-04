@@ -19,6 +19,7 @@ set -euxo pipefail
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 mkdir -p $SCRIPT_DIR/workspace
 WORKSPACE=$SCRIPT_DIR/workspace
+PATCHES=$SCRIPT_DIR/patches/
 
 # TODO generalise this for the non adoptium build farm case
 function checkArgs() {
@@ -93,6 +94,18 @@ function performMergeIntoReleaseFromMaster() {
     fi
   else
     git reset --hard origin/release || echo "Not resetting as no upstream exists"
+  fi
+
+  # Apply our patches to release branch
+  echo "Checking if patches need to be applied for $GITHUB_REPO"
+
+  # actions ignore branch patch is for > jdk11u
+  if [[ "$GITHUB_REPO" != "jdk8u" ]] && [[ "$GITHUB_REPO" != "jdk11u" ]]; then
+    # check to see if patch has already been applied
+    if ! grep -q "\\- dev" "$WORKSPACE/$GITHUB_REPO/.github/workflows/main.yml"; then
+      echo "Applying actions-ignore-branches.patch"
+      git am $PATCHES/actions-ignore-branches.patch
+    fi
   fi
 
   # Find the latest release tag that is not in releaseTagExcludeList

@@ -1,0 +1,23 @@
+From 31773fa5fc61ecba247178bb597007bc1da7111f Mon Sep 17 00:00:00 2001
+From: George Adams <georgeadams1995@gmail.com>
+Date: Wed, 28 Sep 2022 16:48:51 +0100
+Subject: [PATCH] skip github actions builds to save executors
+
+Currently, every time the mirror job runs we end up running GitHub actions builds on all platforms for every commit on both dev and release which ends up burning through our allowance. This PR adds the branches-ignore flag to both branches as we know the code is safe from master.
+---
+ .github/workflows/main.yml | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/.github/workflows/main.yml b/.github/workflows/main.yml
+index ec7e3c9957b..cac8a36dcaf 100644
+--- a/.github/workflows/main.yml
++++ b/.github/workflows/main.yml
+@@ -29,6 +29,8 @@ on:
+   push:
+     branches-ignore:
+       - master
++      - dev
++      - release
+       - pr/*
+   workflow_dispatch:
+     inputs:
