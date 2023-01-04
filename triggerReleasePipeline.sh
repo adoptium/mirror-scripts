@@ -26,7 +26,7 @@ set -euo pipefail
 
 JDKVERSION="$1"
 ADOPTIUM_REPO=${2:-"https://github.com/adoptium/$JDKVERSION.git"}
-BRANCH=${3:-master"}
+BRANCH=${3:-"master"}
 
 # Since we have "jdk8u" in the code, we need to create another lever of "workspace"
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
@@ -49,15 +49,23 @@ cloneGitHubRepo $ADOPTIUM_REPO
 # read expectedTag from cfg file (releasePlan.cfg) to see if this is the correct GA tag we want for release
 expectedTag=$(readExpectedGATag $JDKVERSION)
 
-# check if we need to proceed when expectedTag already get matched and triggered release pipeline in the past
-checkPrevious ${expectedTag}
-
 # fetch all new refs including tags from origin remote
 cd "$WORKSPACE/$JDKVERSION"
 
 # get latest -ga tag (sorted by time) in repo
 latestGaTag=$(git tag --sort=-v:refname | grep '\-ga' | sort -V -r| head -1)
 echo "Latest GA tag: ${latestGaTag}"
+
+# from -ga tag find original commit SHA then list all tags point to the this SHA(exclude -ga tag) => orignal tag(s) from skara
+# in rare case, there might be more tags than the one we want
+# convert from multiple line string into Array and use the first one from the list which is supposed to have _adopt tag
+scmReferenceString="$(git rev-list -1 ${latestGaTag} | xargs git tag --points-at  | grep  -v '\-ga')"
+scmReferenceList=($scmReferenceString)
+# append _adopt => release tag we use in adoptium
+scmReference="${scmReferenceList[0]}_adopt"
+
+# check if we need to proceed when scmReference has already triggered release pipeline in the past
+checkPrevious ${scmReference}
 
 # get the older tag name between the latest GA tag and expected tag
 olderTag="$(echo -e "${expectedTag}\n${latestGaTag}" | sort -V | head -n1)"
@@ -70,15 +78,6 @@ else
   exit 0 # should not continue trigger logic
 fi
 
-# from -ga tag find original commit SHA then list all tags point to the this SHA(exclude -ga tag) => orignal tag(s) from skara
-# in rare case, there might be more tags than the one we want
-# convert from multiple line string into Array and use the first one from the list which is supposed to have _adopt tag
-cd "$WORKSPACE/$JDKVERSION"
-scmReferenceString="$(git rev-list -1 ${latestGaTag} | xargs git tag --points-at  | grep  -v '\-ga')"
-scmReferenceList=($scmReferenceString)
-
-# append _adopt => release tag we use in adoptium
-scmReference="${scmReferenceList[0]}_adopt"
 # loop with 10m sleep if git-mirror has not applied the _adopt tag or if there is a merge conflict in git-mirror that we need to manual resolve
 for i in {1..5}
 do
