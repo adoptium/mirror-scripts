@@ -100,7 +100,7 @@ function performMergeIntoReleaseFromMaster() {
   echo "Checking if patches need to be applied for $GITHUB_REPO"
 
   # actions ignore branch patch is for > jdk11u
-  if [[ "$GITHUB_REPO" != "jdk8u" ]] && [[ "$GITHUB_REPO" != "jdk11u" ]]; then
+  if [[ "$GITHUB_REPO" != "jdk8u" ]] && [[ "$GITHUB_REPO" != "aarch32-port-jdk8u" ]] && [[ "$GITHUB_REPO" != "jdk11u" ]]; then
     # check to see if patch has already been applied
     if ! grep -q "\\- dev" "$WORKSPACE/$GITHUB_REPO/.github/workflows/main.yml"; then
       echo "Applying actions-ignore-branches.patch"
