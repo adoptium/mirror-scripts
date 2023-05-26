@@ -123,6 +123,10 @@ function performMergeIntoReleaseFromMaster() {
         fi
       done
     fi
+    if [[ "$tag" == *\-b00 ]] || [[ "$tag" == *\+0 ]]; then
+        echo "Skipping fork point tag $tag from current list"
+        skipThisTag=true
+    fi
     if [[ "$skipThisTag" == false ]]; then
       currentReleaseTag="$tag"
     fi
@@ -149,6 +153,10 @@ function performMergeIntoReleaseFromMaster() {
            echo "Skipping merge of excluded tag $tag"
           fi
         done
+      fi
+      if [[ "$tag" == *\-b00 ]] || [[ "$tag" == *\+0 ]]; then
+          echo "Skipping merge of fork point tag $tag"
+          mergeTag=false
       fi
       if [[ "$mergeTag" == true ]]; then
         echo "Merging build tag $tag into release branch"
@@ -178,6 +186,10 @@ function performMergeIntoReleaseFromMaster() {
           skipThisTag=true
         fi
       done
+    fi
+    if [[ "$tag" == *\-b00 ]] || [[ "$tag" == *\+0 ]]; then
+        echo "Skipping fork point tag $tag from current list"
+        skipThisTag=true
     fi
     if [[ "$skipThisTag" == false ]]; then
       prevReleaseTag="${currentReleaseTag}"
