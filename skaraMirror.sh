@@ -273,7 +273,7 @@ checkArgs $#
 SKARA_REPO="https://github.com/openjdk/$1"
 GITHUB_REPO="$1"
 REPO=${2:-"git@github.com:adoptium/$GITHUB_REPO"}
-: ${BRANCH:="master"}
+BRANCH=${BRANCH:=master}
 
 GITHUB_REPO_REMOVE_aarch32=${GITHUB_REPO#"aarch32"}
 VERSION=${GITHUB_REPO_REMOVE_aarch32//[!0-9]/}
