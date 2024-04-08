@@ -108,6 +108,12 @@ function performMergeIntoReleaseFromMaster() {
     fi
   fi
 
+  # README.JAVASE patch needed for all repos
+  if [ ! -f "$WORKSPACE/$GITHUB_REPO/README.JAVASE" ]; then
+    echo "Applying README.JAVASE.patch"
+    git am $PATCHES/readme-javase.patch
+  fi
+
   # Find the latest release tag that is not in releaseTagExcludeList
   releaseTags=$(git tag --merged release $TAG_SEARCH || exit 1)
   sortedReleaseTags=$(echo "$releaseTags" | eval "$jdk_sort_tags_cmd" || exit 1)
