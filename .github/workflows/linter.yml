@@ -59,3 +59,5 @@ jobs:
           FILTER_REGEX_EXCLUDE: .github/ISSUE_TEMPLATE/*
           # Lots of shellcheck errors - need fixing
           VALIDATE_BASH: false
+          # Disable isort
+          VALIDATE_PYTHON_ISORT: false

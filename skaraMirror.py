@@ -79,6 +79,11 @@ def add_skara_upstream(workspace, jdk_version, skara_repo, branch):
         # Fetch origin
         repo.remotes.origin.fetch()
 
+        # Check if the remote named 'skara' exists, add if not
+        if "skara" not in [remote.name for remote in repo.remotes]:
+            print(f"Initial setup of: {skara_repo}")
+            repo.create_remote("skara", skara_repo)
+
         # Check out the specified branch
         if branch in repo.heads:
             # Branch exists locally, just check it out
@@ -97,11 +102,6 @@ def add_skara_upstream(workspace, jdk_version, skara_repo, branch):
             repo.remotes.skara.fetch()
             # Create master branch
             repo.create_head(branch, f"skara/{branch}").checkout()
-
-        # Check if the remote named 'skara' exists, add if not
-        if "skara" not in [remote.name for remote in repo.remotes]:
-            print(f"Initial setup of: {skara_repo}")
-            repo.create_remote("skara", skara_repo)
 
     except GitCommandError as error:
         print(f"Git command failed: {error}")
@@ -233,7 +233,9 @@ def perform_merge_into_release_from_master(workspace, github_repo, branch):
                 )
                 print(f"Tagging {tag} as {tag}_adopt")
                 adoptTag = f"{tag}_adopt"
-                repo.create_tag(adoptTag, ref=tag, message=f"Merged {tag} into release")
+                repo.create_tag(
+                    adoptTag, ref="release", message=f"Merged {tag} into release"
+                )
                 newAdoptTags.append(adoptTag)
 
         if repo.git.rev_parse(
@@ -274,6 +276,7 @@ def perform_merge_into_release_from_master(workspace, github_repo, branch):
 
                 if repo.git.tag("-l", prevReleaseAdoptTag):
                     if not repo.git.tag("-l", currentReleaseAdoptTag):
+                        print("here")
                         print(
                             f"Tagging new current release tag {currentReleaseAdoptTag} "
                             + f"which is same commit as the previous {prevReleaseAdoptTag}"

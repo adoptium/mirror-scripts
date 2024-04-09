@@ -46,3 +46,11 @@ Mirror the JDK 8 repository from a specific repository and branch:
 ```bash
 ./skaraMirror.py jdk8u git@github.com:custom_org custom_branch
 ```
+
+## Running tests
+
+The tests for this codebase live in `/tests`. If you want to run them you can use the following command:
+
+```bash
+python -m unittest discover tests
+```
