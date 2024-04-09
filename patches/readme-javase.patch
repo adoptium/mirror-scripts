@@ -1,0 +1,34 @@
+From d274f1fb6e2a32e873003ebf79753909a513f83d Mon Sep 17 00:00:00 2001
+From: Stewart X Addison <sxa@redhat.com>
+Date: Mon, 8 Apr 2024 15:45:06 +0000
+Subject: [PATCH] Adoptium JAVASE marker
+
+---
+ README.JAVASE | 18 ++++++++++++++++++
+ 1 file changed, 18 insertions(+)
+ create mode 100644 README.JAVASE
+
+diff --git a/README.JAVASE b/README.JAVASE
+new file mode 100644
+index 00000000000..79a5d204434
+--- /dev/null
++++ b/README.JAVASE
+@@ -0,0 +1,18 @@
++Do NOT remove or modify this file.
++
++The following notice is required to be included in the root directory of source
++code repositories.
++
++This version of Eclipse Temurin source code is made available in support of the
++open source development process. Some numbered or tagged revisions of this
++source may have been tested and found to pass the Java SE TCK, and you can find
++information on which revisions or tags at https://www.adoptium.net.
++Please note that since only binaries can be tested, source code cannot be
++described as a compatible implementation of the Java SE Specification. The
++different build environment on your machine and any changes you may make to this
++code could render your resulting build incompatible. Because of this, writing or
++deploying applications to builds based on this code can lead to lack of
++portability. You should instead consider deploying production applications on
++the pre-built binaries of Eclipse Temurin that are available at
++https://www.adoptium.net that have been tested and certified to meet the Java SE
++compatibility requirements.
