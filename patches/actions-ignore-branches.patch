@@ -16,8 +16,8 @@ index ec7e3c9957b..cac8a36dcaf 100644
    push:
      branches-ignore:
        - master
-+      - dev
-+      - release
++      - dev*
++      - release*
        - pr/*
        - jdk*
    workflow_dispatch:
