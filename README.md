@@ -20,7 +20,7 @@ The script merges the appropriate latest merged "master" branch code into both "
 
 The BRANCH environment variable defines the upstream master branch name, and defaults to "master" if not specified. The dev and release
 mirror branches default to "dev" and "release" for "master", for other master branches they are "dev_$BRANCH" and "release_$BRANCH". This is to support
-the new upstream OpenJDK head repository stabilization version branches (eg.jdk23, would use mirror branches dev_jdk23 and release_jdk23).
+the new upstream OpenJDK head repository stabilization version branches (e.g., `jdk23`, would use mirror branches `dev_jdk23` and `release_jdk23`).
 
 The flow for the merge process is:
 ```mermaid
