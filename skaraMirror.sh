@@ -269,7 +269,7 @@ GITHUB_REPO="$1"
 REPO=${2:-"git@github.com:adoptium/$GITHUB_REPO"}
 BRANCH=${BRANCH:=master}
 
-# Does this OpenJDK repo support verion branching?
+# Does this OpenJDK repo support version branching?
 VERSION_BRANCHING=false
 
 # jdk(head) is only repository currently supporting version branches
