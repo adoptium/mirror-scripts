@@ -27,6 +27,7 @@ set -euo pipefail
 JDKVERSION="$1"
 ADOPTIUM_REPO=${2:-"https://github.com/adoptium/$JDKVERSION.git"}
 BRANCH=${3:-"master"}
+SOLARIS=${4:-"normal"}
 
 # Since we have "jdk8u" in the code, we need to create another lever of "workspace"
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
@@ -87,7 +88,11 @@ do
     echo "Found tag: ${scmReference}"
     # write into properties file for release pipeline to get input from
     # existence of this file will be used in jenkins job as if should continue trigger logic
-    echo scmReference=$scmReference > ${SCRIPT_DIR}/properties
+    if [[ "${SOLARIS}" == "solaris" ]]; then
+      echo SCM_REF=$scmReference > ${SCRIPT_DIR}/properties
+    else
+      echo scmReference=$scmReference > ${SCRIPT_DIR}/properties
+    fi
     # also write into a tracking file which can avoid mulitple triggering to release pipeline
     echo previousSCM=$scmReference > ${WORKSPACE}/tracking
     break # should continue trigger logic
