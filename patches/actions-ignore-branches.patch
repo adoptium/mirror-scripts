@@ -9,16 +9,15 @@ Currently, every time the mirror job runs we end up running GitHub actions build
  1 file changed, 2 insertions(+)
 
 diff --git a/.github/workflows/main.yml b/.github/workflows/main.yml
-index ec7e3c9957b..cac8a36dcaf 100644
+index 09e6ed65a47..2d6276fbd60 100644
 --- a/.github/workflows/main.yml
 +++ b/.github/workflows/main.yml
-@@ -29,6 +29,8 @@ on:
+@@ -28,6 +28,8 @@ name: 'OpenJDK GHA Sanity Checks'
+ on:
    push:
      branches-ignore:
-       - master
 +      - dev*
 +      - release*
        - pr/*
-       - jdk*
    workflow_dispatch:
      inputs:
