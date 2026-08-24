@@ -115,11 +115,32 @@ pipeline {
     }
 
     post {
-        failure {
-            echo 'Mirror job failed.'
+        always {
+            echo 'Mirror job finished.'
         }
         success {
             echo 'All branches mirrored successfully.'
+        }
+        unstable {
+            echo 'Mirror job completed with an unstable result.'
+        }
+        failure {
+            echo 'Mirror job failed.'
+        }
+        aborted {
+            echo 'Mirror job was aborted.'
+        }
+        changed {
+            echo 'Mirror job result has changed since the last run.'
+        }
+        fixed {
+            echo 'Mirror job is back to success after a previous failure.'
+        }
+        regression {
+            echo 'Mirror job was previously successful but is now failing.'
+        }
+        cleanup {
+            echo 'Mirror job post-processing complete.'
         }
     }
 }
