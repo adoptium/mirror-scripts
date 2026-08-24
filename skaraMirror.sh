@@ -267,17 +267,18 @@ checkArgs $#
 SKARA_REPO="https://github.com/openjdk/$1"
 GITHUB_REPO="$1"
 REPO=${2:-"git@github.com:adoptium/$GITHUB_REPO"}
-BRANCH=${BRANCH:=master}
 
-# Does this OpenJDK repo support version branching?
-VERSION_BRANCHING=false
-
-# jdk(head) is only repository currently supporting version branches
-if [[ "${GITHUB_REPO}" == "jdk" ]]; then
-  VERSION_BRANCHING=true
+# Determine the default branch of the upstream Skara repo
+SKARA_DEFAULT_BRANCH=$(curl -fsSL "https://api.github.com/repos/openjdk/${GITHUB_REPO}" | grep '"default_branch"' | head -1 | sed 's/.*"default_branch": *"\([^"]*\)".*/\1/' | tr -d '[:space:]')
+if [[ -z "${SKARA_DEFAULT_BRANCH}" ]]; then
+  echo "ERROR: Could not determine default branch for openjdk/${GITHUB_REPO} - GitHub API response was empty or unexpected"
+  exit 1
 fi
+echo "Upstream default branch: ${SKARA_DEFAULT_BRANCH}"
 
-if [[ "${VERSION_BRANCHING}" == false ]] || [[ "${BRANCH}" == "master" ]]; then
+BRANCH=${BRANCH:=${SKARA_DEFAULT_BRANCH}}
+
+if [[ "${BRANCH}" == "${SKARA_DEFAULT_BRANCH}" ]]; then
   RELEASE_BRANCH="release"
   DEV_BRANCH="dev"
 else
