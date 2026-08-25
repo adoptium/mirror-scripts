@@ -44,20 +44,27 @@ function addSkaralUpstream() {
   cd "$WORKSPACE/$GITHUB_REPO" || exit 1
 
   git fetch --all
-  if ! git checkout -f "$BRANCH" ; then
-    if ! git rev-parse -q --verify "origin/$BRANCH" ; then
-      git checkout -b "$BRANCH" || exit 1
-    else
-      git checkout -b "$BRANCH" origin/"$BRANCH" || exit 1
-    fi
-  else
-    git reset --hard origin/"$BRANCH" || echo "Not resetting as no upstream exists"
-  fi
 
+  # Ensure the skara remote exists before we need it
   # shellcheck disable=SC2143
   if [ -z "$(git remote -v | grep 'skara')" ] ; then
     echo "Initial setup of $SKARA_REPO"
     git remote add skara "$SKARA_REPO"
+  fi
+
+  # Fetch skara so skara/$BRANCH is available for branch creation below
+  git fetch skara
+
+  if ! git checkout -f "$BRANCH" ; then
+    if ! git rev-parse -q --verify "origin/$BRANCH" ; then
+      # Branch does not exist locally or on origin — create it from skara/$BRANCH
+      # so it starts at the correct upstream commit, not the current HEAD
+      git checkout -b "$BRANCH" "skara/$BRANCH" || exit 1
+    else
+      git checkout -b "$BRANCH" "origin/$BRANCH" || exit 1
+    fi
+  else
+    git reset --hard "origin/$BRANCH" || echo "Not resetting as no upstream exists"
   fi
 }
 
