@@ -57,8 +57,8 @@ pipeline {
                     def defaultBranch = repoInfo.default_branch
                     echo "Default branch: ${defaultBranch}"
 
-                    // Staleness threshold: 3 months ago (in milliseconds)
-                    def threeMonthsAgo = System.currentTimeMillis() - (90L * 24 * 60 * 60 * 1000)
+                    // Staleness threshold: 3 months ago as an Instant
+                    def threeMonthsAgo = java.time.Instant.now().minus(90, java.time.temporal.ChronoUnit.DAYS)
 
                     // Retrieve all branches and filter to active (non-stale) ones — paginate until exhausted.
                     // For each branch we fetch the commit date via the /branches/<name> detail endpoint.
@@ -84,8 +84,8 @@ pipeline {
                                 error("GitHub API did not return commit date for branch '${b.name}' - response may be malformed")
                             }
                             def commitDate = branchDetail.commit.commit.committer.date  // ISO-8601
-                            def commitMs = java.time.Instant.parse(commitDate).toEpochMilli()
-                            if (commitMs >= threeMonthsAgo) {
+                            def commitInstant = java.time.Instant.parse(commitDate)
+                            if (!commitInstant.isBefore(threeMonthsAgo)) {
                                 echo "Active branch: ${b.name} (last commit: ${commitDate})"
                                 branches.add(b.name)
                             } else {
