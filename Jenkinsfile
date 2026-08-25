@@ -57,8 +57,15 @@ pipeline {
                     def defaultBranch = repoInfo.default_branch
                     echo "Default branch: ${defaultBranch}"
 
-                    // Staleness threshold: 3 months ago as an Instant
-                    def threeMonthsAgo = java.time.Instant.now().minus(90, java.time.temporal.ChronoUnit.DAYS)
+                    // Staleness threshold: unix timestamp 90 days ago, computed via shell (sandbox-safe)
+                    def threeMonthsAgoStr = sh(
+                        script: "date -d '90 days ago' +%s",
+                        returnStdout: true
+                    ).trim()
+                    if (!threeMonthsAgoStr.isLong()) {
+                        error("Failed to compute staleness threshold: 'date -d 90 days ago' returned unexpected output: '${threeMonthsAgoStr}'")
+                    }
+                    def threeMonthsAgoEpoch = threeMonthsAgoStr as long
 
                     // Retrieve all branches and filter to active (non-stale) ones — paginate until exhausted.
                     // For each branch we fetch the commit date via the /branches/<name> detail endpoint.
@@ -84,8 +91,15 @@ pipeline {
                                 error("GitHub API did not return commit date for branch '${b.name}' - response may be malformed")
                             }
                             def commitDate = branchDetail.commit.commit.committer.date  // ISO-8601
-                            def commitInstant = java.time.Instant.parse(commitDate)
-                            if (!commitInstant.isBefore(threeMonthsAgo)) {
+                            def commitEpochStr = sh(
+                                script: "date -d '${commitDate}' +%s",
+                                returnStdout: true
+                            ).trim()
+                            if (!commitEpochStr.isLong()) {
+                                error("Failed to parse commit date for branch '${b.name}': 'date -d ${commitDate}' returned unexpected output: '${commitEpochStr}'")
+                            }
+                            def commitEpoch = commitEpochStr as long
+                            if (commitEpoch >= threeMonthsAgoEpoch) {
                                 echo "Active branch: ${b.name} (last commit: ${commitDate})"
                                 branches.add(b.name)
                             } else {
