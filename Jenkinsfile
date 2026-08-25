@@ -54,9 +54,8 @@ pipeline {
                     echo "Upstream SKARA_REPO: ${skaraRepo}"
 
                     // Fetch the default branch name and all active branches via the GitHub API.
-                    // "Active" branches are those not marked as stale by GitHub (i.e. they appear
-                    // in the default branch listing without the --stale flag, equivalent to the
-                    // summary shown on the GitHub branches page).
+                    // "Active" branches match GitHub's own definition: last commit within 3 months,
+                    // which is the threshold used on the GitHub branches summary page.
                     def apiBase = "https://api.github.com/repos/openjdk/${params.JDK_VERSION}"
 
                     // Retrieve default branch
@@ -65,10 +64,18 @@ pipeline {
                         returnStdout: true
                     ).trim()
                     def repoInfo = readJSON text: repoInfoJson
+                    if (!repoInfo.default_branch) {
+                        error("GitHub API did not return a default_branch for openjdk/${params.JDK_VERSION} - response may be malformed")
+                    }
                     def defaultBranch = repoInfo.default_branch
                     echo "Default branch: ${defaultBranch}"
 
-                    // Retrieve all active (non-stale) branches — paginate until exhausted
+                    // Staleness threshold: 3 months ago (in milliseconds)
+                    def threeMonthsAgo = System.currentTimeMillis() - (90L * 24 * 60 * 60 * 1000)
+
+                    // Retrieve all branches and filter to active (non-stale) ones — paginate until exhausted.
+                    // For each branch we fetch the commit date via the /branches/<name> detail endpoint.
+                    // Use a for loop (not .each{}) so that any curl/parse failure propagates immediately.
                     def branches = [] as Set
                     def page = 1
                     while (true) {
@@ -80,7 +87,24 @@ pipeline {
                         if (pageBranches.isEmpty()) {
                             break
                         }
-                        pageBranches.each { b -> branches.add(b.name) }
+                        for (b in pageBranches) {
+                            def branchDetailJson = sh(
+                                script: "curl -fsSL '${apiBase}/branches/${b.name}'",
+                                returnStdout: true
+                            ).trim()
+                            def branchDetail = readJSON text: branchDetailJson
+                            if (!branchDetail?.commit?.commit?.committer?.date) {
+                                error("GitHub API did not return commit date for branch '${b.name}' - response may be malformed")
+                            }
+                            def commitDate = branchDetail.commit.commit.committer.date  // ISO-8601
+                            def commitMs = Date.parse("yyyy-MM-dd'T'HH:mm:ss'Z'", commitDate).getTime()
+                            if (commitMs >= threeMonthsAgo) {
+                                echo "Active branch: ${b.name} (last commit: ${commitDate})"
+                                branches.add(b.name)
+                            } else {
+                                echo "Stale branch (skipping): ${b.name} (last commit: ${commitDate})"
+                            }
+                        }
                         page++
                     }
 
