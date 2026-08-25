@@ -84,7 +84,7 @@ pipeline {
                                 error("GitHub API did not return commit date for branch '${b.name}' - response may be malformed")
                             }
                             def commitDate = branchDetail.commit.commit.committer.date  // ISO-8601
-                            def commitMs = Date.parse("yyyy-MM-dd'T'HH:mm:ss'Z'", commitDate).getTime()
+                            def commitMs = java.time.Instant.parse(commitDate).toEpochMilli()
                             if (commitMs >= threeMonthsAgo) {
                                 echo "Active branch: ${b.name} (last commit: ${commitDate})"
                                 branches.add(b.name)
