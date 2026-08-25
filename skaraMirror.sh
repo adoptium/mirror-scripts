@@ -64,7 +64,12 @@ function addSkaralUpstream() {
       git checkout -b "$BRANCH" "origin/$BRANCH" || exit 1
     fi
   else
-    git reset --hard "origin/$BRANCH" || echo "Not resetting as no upstream exists"
+    # Only reset to origin/$BRANCH if it has been pushed there previously
+    if git rev-parse -q --verify "origin/$BRANCH" ; then
+      git reset --hard "origin/$BRANCH" || exit 1
+    else
+      echo "No origin/$BRANCH exists yet, skipping reset"
+    fi
   fi
 }
 
