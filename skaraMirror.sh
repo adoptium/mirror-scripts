@@ -280,10 +280,10 @@ SKARA_REPO="https://github.com/openjdk/$1"
 GITHUB_REPO="$1"
 REPO=${2:-"git@github.com:adoptium/$GITHUB_REPO"}
 
-# Determine the default branch of the upstream Skara repo
-SKARA_DEFAULT_BRANCH=$(curl -fsSL "https://api.github.com/repos/openjdk/${GITHUB_REPO}" | grep '"default_branch"' | head -1 | sed 's/.*"default_branch": *"\([^"]*\)".*/\1/' | tr -d '[:space:]')
+# Determine the default branch of the upstream Skara repo via git ls-remote (no API token needed)
+SKARA_DEFAULT_BRANCH=$(git ls-remote --symref "${SKARA_REPO}" HEAD | grep '^ref:' | sed 's|ref: refs/heads/||;s/[[:space:]].*//' | tr -d '[:space:]')
 if [[ -z "${SKARA_DEFAULT_BRANCH}" ]]; then
-  echo "ERROR: Could not determine default branch for openjdk/${GITHUB_REPO} - GitHub API response was empty or unexpected"
+  echo "ERROR: Could not determine default branch for ${SKARA_REPO} - git ls-remote --symref returned unexpected output"
   exit 1
 fi
 echo "Upstream default branch: ${SKARA_DEFAULT_BRANCH}"

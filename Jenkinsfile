@@ -40,81 +40,75 @@ pipeline {
                     def skaraRepo = "https://github.com/openjdk/${params.JDK_VERSION}"
                     echo "Upstream SKARA_REPO: ${skaraRepo}"
 
-                    // Fetch the default branch name and all active branches via the GitHub API.
-                    // "Active" branches match GitHub's own definition: last commit within 3 months,
-                    // which is the threshold used on the GitHub branches summary page.
-                    def apiBase = "https://api.github.com/repos/openjdk/${params.JDK_VERSION}"
-
-                    // Retrieve default branch
-                    def repoInfoJson = sh(
-                        script: "curl -fsSL '${apiBase}'",
+                    // Determine default branch via git ls-remote --symref (no API token needed)
+                    def symrefOutput = sh(
+                        script: "git ls-remote --symref '${skaraRepo}' HEAD",
                         returnStdout: true
                     ).trim()
-                    def repoInfo = readJSON text: repoInfoJson
-                    if (!repoInfo.default_branch) {
-                        error("GitHub API did not return a default_branch for openjdk/${params.JDK_VERSION} - response may be malformed")
+                    def defaultBranchMatch = symrefOutput =~ /ref: refs\/heads\/(\S+)\s+HEAD/
+                    if (!defaultBranchMatch) {
+                        error("Could not determine default branch for ${skaraRepo} - git ls-remote --symref output was unexpected:\n${symrefOutput}")
                     }
-                    def defaultBranch = repoInfo.default_branch
+                    def defaultBranch = defaultBranchMatch[0][1]
                     echo "Default branch: ${defaultBranch}"
 
-                    // Staleness threshold: unix timestamp 90 days ago, computed via shell (sandbox-safe)
-                    def threeMonthsAgoStr = sh(
-                        script: "date -d '90 days ago' +%s",
-                        returnStdout: true
-                    ).trim()
-                    if (!threeMonthsAgoStr.isLong()) {
-                        error("Failed to compute staleness threshold: 'date -d 90 days ago' returned unexpected output: '${threeMonthsAgoStr}'")
-                    }
-                    def threeMonthsAgoEpoch = threeMonthsAgoStr as long
+                    // Do a temporary bare clone with --filter=blob:none to get branch refs and
+                    // commit dates without downloading any file content.
+                    def tmpBareClone = "${env.WORKSPACE}/tmp-bare-${params.JDK_VERSION}"
+                    sh "rm -rf '${tmpBareClone}'"
+                    sh "git clone --bare --filter=blob:none '${skaraRepo}' '${tmpBareClone}'"
 
-                    // Retrieve all branches and filter to active (non-stale) ones — paginate until exhausted.
-                    // For each branch we fetch the commit date via the /branches/<name> detail endpoint.
-                    // Use a for loop (not .each{}) so that any curl/parse failure propagates immediately.
-                    def branches = [] as Set
-                    def page = 1
-                    while (true) {
-                        def pageJson = sh(
-                            script: "curl -fsSL '${apiBase}/branches?per_page=100&page=${page}'",
+                    try {
+                        // Staleness threshold: 90 days ago as unix epoch
+                        def threeMonthsAgoStr = sh(
+                            script: "date -d '90 days ago' +%s",
                             returnStdout: true
                         ).trim()
-                        def pageBranches = readJSON text: pageJson
-                        if (pageBranches.isEmpty()) {
-                            break
+                        if (!threeMonthsAgoStr.isLong()) {
+                            error("Failed to compute staleness threshold: unexpected output: '${threeMonthsAgoStr}'")
                         }
-                        for (b in pageBranches) {
-                            def branchDetailJson = sh(
-                                script: "curl -fsSL '${apiBase}/branches/${b.name}'",
-                                returnStdout: true
-                            ).trim()
-                            def branchDetail = readJSON text: branchDetailJson
-                            if (!branchDetail?.commit?.commit?.committer?.date) {
-                                error("GitHub API did not return commit date for branch '${b.name}' - response may be malformed")
-                            }
-                            def commitDate = branchDetail.commit.commit.committer.date  // ISO-8601
+                        def threeMonthsAgoEpoch = threeMonthsAgoStr as long
+
+                        // List all remote branches from the bare clone
+                        def allBranchesRaw = sh(
+                            script: "git -C '${tmpBareClone}' for-each-ref --format='%(refname:short)' refs/heads/",
+                            returnStdout: true
+                        ).trim()
+                        if (!allBranchesRaw) {
+                            error("No branches found in ${skaraRepo}")
+                        }
+
+                        // Filter to active branches by checking last commit date
+                        def branches = [] as Set
+                        for (branch in allBranchesRaw.split('\n')) {
+                            branch = branch.trim()
+                            if (!branch) continue
                             def commitEpochStr = sh(
-                                script: "date -d '${commitDate}' +%s",
+                                script: "git -C '${tmpBareClone}' log -1 --format='%ct' '${branch}'",
                                 returnStdout: true
                             ).trim()
                             if (!commitEpochStr.isLong()) {
-                                error("Failed to parse commit date for branch '${b.name}': 'date -d ${commitDate}' returned unexpected output: '${commitEpochStr}'")
+                                error("Could not determine commit date for branch '${branch}': unexpected output: '${commitEpochStr}'")
                             }
                             def commitEpoch = commitEpochStr as long
                             if (commitEpoch >= threeMonthsAgoEpoch) {
-                                echo "Active branch: ${b.name} (last commit: ${commitDate})"
-                                branches.add(b.name)
+                                echo "Active branch: ${branch} (epoch: ${commitEpoch})"
+                                branches.add(branch)
                             } else {
-                                echo "Stale branch (skipping): ${b.name} (last commit: ${commitDate})"
+                                echo "Stale branch (skipping): ${branch} (epoch: ${commitEpoch})"
                             }
                         }
-                        page++
+
+                        // Ensure the default branch is always included
+                        branches.add(defaultBranch)
+
+                        echo "Active branches to mirror: ${branches.join(', ')}"
+                        env.BRANCHES_TO_MIRROR = branches.join(' ')
+                        env.DEFAULT_BRANCH     = defaultBranch
+                    } finally {
+                        // Always clean up the temporary bare clone
+                        sh "rm -rf '${tmpBareClone}'"
                     }
-
-                    // Ensure the default branch is always included
-                    branches.add(defaultBranch)
-
-                    echo "Active branches to mirror: ${branches.join(', ')}"
-                    env.BRANCHES_TO_MIRROR = branches.join(' ')
-                    env.DEFAULT_BRANCH     = defaultBranch
                 }
             }
         }
