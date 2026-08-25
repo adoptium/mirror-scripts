@@ -23,19 +23,6 @@ pipeline {
         cron('H * * * *')
     }
 
-    parameters {
-        string(
-            name: 'JDK_VERSION',
-            defaultValue: '',
-            description: 'The OpenJDK repository name to mirror from https://github.com/openjdk/ (e.g. jdk21u, jdk, jdk8u)'
-        )
-        string(
-            name: 'ADOPTIUM_MIRROR_REPO',
-            defaultValue: '',
-            description: '(Optional) Adoptium mirror GitHub repository name. Defaults to the JDK_VERSION value (e.g. adoptium/<JDK_VERSION>).'
-        )
-    }
-
     stages {
         stage('Validate Parameters') {
             steps {
