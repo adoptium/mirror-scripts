@@ -119,6 +119,19 @@ pipeline {
             }
         }
 
+        stage('Clean Mirror Workspace') {
+            when {
+                expression { return params.CLEAN_MIRROR_WORKSPACE == true }
+            }
+            steps {
+                script {
+                    def workspaceDir = "${env.WORKSPACE}/workspace/${params.JDK_VERSION}"
+                    echo "Cleaning mirror workspace: ${workspaceDir}"
+                    sh "rm -rf '${workspaceDir}'"
+                }
+            }
+        }
+
         stage('Mirror Branches') {
             steps {
                 script {
