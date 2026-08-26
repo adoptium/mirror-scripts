@@ -108,22 +108,35 @@ function performMergeIntoReleaseFromMaster() {
     git reset --hard "origin/$RELEASE_BRANCH" || echo "Not resetting as no upstream exists"
   fi
 
-  # Apply our patches to release branch
-  echo "Checking if patches need to be applied for $GITHUB_REPO"
-
-  # actions ignore branch patch is for > jdk11u
-  if [[ "$GITHUB_REPO" != "jdk8u" ]] && [[ "$GITHUB_REPO" != "aarch32-port-jdk8u" ]] && [[ "$GITHUB_REPO" != "jdk11u" ]]; then
-    # check to see if patch has already been applied
-    if ! grep -q "\\- dev" "$WORKSPACE/$GITHUB_REPO/.github/workflows/main.yml"; then
-      echo "Applying actions-ignore-branches.patch"
-      git am $PATCHES/actions-ignore-branches.patch
-    fi
-  fi
-
-  # README.JAVASE patch needed for all repos
+  # Apply Adoptium patches to release branch, gated on README.JAVASE not existing
+  # (README.JAVASE is the Adoptium marker file — its absence means no patches have been applied yet)
   if [ ! -f "$WORKSPACE/$GITHUB_REPO/README.JAVASE" ]; then
-    echo "Applying README.JAVASE.patch"
-    git am $PATCHES/readme-javase.patch
+    echo "Applying Adoptium patches for $GITHUB_REPO"
+
+    # Step 1: Apply top-level patches, skipping any whose filename also exists in patches/<GITHUB_REPO>/
+    # (repo-specific patches in the sub-folder take precedence and will be applied in step 2)
+    for patchFile in "$PATCHES"*.patch; do
+      [ -f "$patchFile" ] || continue
+      patchName=$(basename "$patchFile")
+      if [ -f "$PATCHES$GITHUB_REPO/$patchName" ]; then
+        echo "Skipping top-level $patchName (overridden by patches/$GITHUB_REPO/$patchName)"
+      else
+        echo "Applying top-level patch: $patchName"
+        git am "$patchFile" || exit 1
+      fi
+    done
+
+    # Step 2: Apply repo-specific patches from patches/<GITHUB_REPO>/ if that folder exists
+    if [ -d "$PATCHES$GITHUB_REPO" ]; then
+      for patchFile in "$PATCHES$GITHUB_REPO"/*.patch; do
+        [ -f "$patchFile" ] || continue
+        patchName=$(basename "$patchFile")
+        echo "Applying repo-specific patch: $patchName"
+        git am "$patchFile" || exit 1
+      done
+    fi
+  else
+    echo "README.JAVASE already exists — patches already applied, skipping"
   fi
 
   # Find the latest release tag that is not in releaseTagExcludeList
@@ -244,12 +257,20 @@ function performMergeIntoDevFromMaster() {
 
   if ! git checkout -f "$DEV_BRANCH" ; then
     if ! git rev-parse -q --verify "origin/$DEV_BRANCH" ; then
-      git checkout -b "$DEV_BRANCH" || exit 1
+      # Branch does not exist locally or on origin — create it from $BRANCH (upstream default,
+      # already at latest HEAD from performMergeFromSkaraIntoGit), not from current HEAD
+      # which will be RELEASE_BRANCH after performMergeIntoReleaseFromMaster()
+      git checkout -b "$DEV_BRANCH" "$BRANCH" || exit 1
     else
       git checkout -b "$DEV_BRANCH" "origin/$DEV_BRANCH" || exit 1
     fi
   else
-    git reset --hard "origin/$DEV_BRANCH" || echo "Not resetting as no upstream exists"
+    # Only reset to origin/$DEV_BRANCH if it has been pushed there previously
+    if git rev-parse -q --verify "origin/$DEV_BRANCH" ; then
+      git reset --hard "origin/$DEV_BRANCH" || exit 1
+    else
+      echo "No origin/$DEV_BRANCH exists yet, skipping reset"
+    fi
   fi
 
   devTags=$(git tag --merged "$DEV_BRANCH" $TAG_SEARCH || exit 1)
