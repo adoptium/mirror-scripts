@@ -146,10 +146,13 @@ function performMergeIntoReleaseFromMaster() {
   buildTags=$(git tag --merged origin/"$BRANCH" $TAG_SEARCH || exit 1)
   sortedBuildTags=$(echo "$buildTags" | eval "$jdk_sort_tags_cmd" || exit 1)
 
+  NEW_RELEASE_BRANCH_TAG=""
   if ! git checkout -f "$RELEASE_BRANCH" ; then
     if ! git rev-parse -q --verify "origin/$RELEASE_BRANCH" ; then
       currentBuildTag=$(echo "$buildTags" | eval "$jdk_sort_tags_cmd" | tail -1 || exit 1)
       git checkout -b "$RELEASE_BRANCH" $currentBuildTag || exit 1
+      # Remember the tag this new branch was created from so we can _adopt tag it after patching
+      NEW_RELEASE_BRANCH_TAG="$currentBuildTag"
     else
       git checkout -b "$RELEASE_BRANCH" "origin/$RELEASE_BRANCH" || exit 1
     fi
@@ -207,6 +210,18 @@ function performMergeIntoReleaseFromMaster() {
           fi
         fi
       done
+    fi
+
+    # If this is a brand new release branch, tag the base build tag with _adopt now that
+    # patches have been applied — the merge loop below will find no new tags to process
+    if [[ -n "$NEW_RELEASE_BRANCH_TAG" ]]; then
+      local adoptTag="${NEW_RELEASE_BRANCH_TAG}_adopt"
+      if [ "$(git tag -l "$adoptTag")" == "" ]; then
+        echo "Tagging new $RELEASE_BRANCH base tag ${adoptTag}"
+        git tag -a "$adoptTag" -m "Merged ${NEW_RELEASE_BRANCH_TAG} into $RELEASE_BRANCH" || exit 1
+      else
+        echo "Adopt tag ${adoptTag} already exists, skipping"
+      fi
     fi
   else
     echo "README.JAVASE already exists — patches already applied, skipping"
