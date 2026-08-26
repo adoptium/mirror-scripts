@@ -1,0 +1,56 @@
+From eebeb5f6e910c116bdf7fb9b2d264ee00594507d Mon Sep 17 00:00:00 2001
+From: Stephanie Crater <scrater@microsoft.com>
+Date: Mon, 7 Mar 2022 14:43:32 -0800
+Subject: [PATCH] __SIGRTMAX is not defined in musl libc
+
+---
+ jdk/src/solaris/native/java/net/linux_close.c    | 5 ++++-
+ jdk/src/solaris/native/sun/nio/ch/NativeThread.c | 8 ++++++--
+ 2 files changed, 10 insertions(+), 3 deletions(-)
+
+diff --git a/jdk/src/solaris/native/java/net/linux_close.c b/jdk/src/solaris/native/java/net/linux_close.c
+index 457ac8bdf9..fae8a6f084 100644
+--- a/jdk/src/solaris/native/java/net/linux_close.c
++++ b/jdk/src/solaris/native/java/net/linux_close.c
+@@ -63,7 +63,7 @@ typedef struct {
+ /*
+  * Signal to unblock thread
+  */
+-static int sigWakeup = (__SIGRTMAX - 2);
++static int sigWakeup;
+ 
+ /*
+  * fdTable holds one entry per file descriptor, up to a certain
+@@ -152,6 +152,9 @@ static void __attribute((constructor)) init() {
+     /*
+      * Setup the signal handler
+      */
++#ifndef _AIX
++    sigWakeup = SIGRTMAX - 2;
++#endif
+     sa.sa_handler = sig_wakeup;
+     sa.sa_flags   = 0;
+     sigemptyset(&sa.sa_mask);
+diff --git a/jdk/src/solaris/native/sun/nio/ch/NativeThread.c b/jdk/src/solaris/native/sun/nio/ch/NativeThread.c
+index 5e2a78b7af..b512b10aed 100644
+--- a/jdk/src/solaris/native/sun/nio/ch/NativeThread.c
++++ b/jdk/src/solaris/native/sun/nio/ch/NativeThread.c
+@@ -34,9 +34,13 @@
+ 
+ #ifdef __linux__
+   #include <pthread.h>
+-  #include <sys/signal.h>
++  #ifndef MUSL_LIBC
++    #include <sys/signal.h>
++  #else
++    #include <signal.h>
++  #endif
+   /* Also defined in net/linux_close.c */
+-  #define INTERRUPT_SIGNAL (__SIGRTMAX - 2)
++  #define INTERRUPT_SIGNAL (SIGRTMAX - 2)
+ #elif __solaris__
+   #include <thread.h>
+   #include <signal.h>
+-- 
+2.52.0
+

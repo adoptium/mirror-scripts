@@ -1,0 +1,145 @@
+From 64e700caf63749a574abf84511420cc22c74217f Mon Sep 17 00:00:00 2001
+From: George Adams <georgeadams1995@gmail.com>
+Date: Mon, 6 Dec 2021 11:26:48 +0000
+Subject: [PATCH] apply [PATCH] Allow setting company name
+
+---
+ common/autoconf/generated-configure.sh        | 24 +++++++++++--------
+ common/autoconf/jdk-options.m4                | 12 ++++++++++
+ jdk/make/gensrc/GensrcMisc.gmk                |  6 +++++
+ .../classes/sun/misc/Version.java.template    |  7 ++++--
+ 4 files changed, 37 insertions(+), 12 deletions(-)
+
+diff --git a/common/autoconf/generated-configure.sh b/common/autoconf/generated-configure.sh
+index 71fabf4dbb..c926f7d75e 100644
+--- a/common/autoconf/generated-configure.sh
++++ b/common/autoconf/generated-configure.sh
+@@ -1067,6 +1067,7 @@ with_milestone
+ with_update_version
+ with_user_release_suffix
+ with_build_number
++with_company_name
+ with_vendor_name
+ with_vendor_url
+ with_vendor_bug_url
+@@ -1918,6 +1919,7 @@ Optional Packages:
+                           Add a custom string to the version string if build
+                           number isn't set.[username_builddateb00]
+   --with-build-number     Set build number value for build [b00]
++  --with-company-name     Set company name
+   --with-vendor-name      Set vendor name. Among others, used to set the
+                           'java.vendor' and 'java.vm.vendor' system
+                           properties. [not specified]
+@@ -20138,18 +20140,20 @@ fi
+ 
+   # Now set the JDK version, milestone, build number etc.
+ 
++  # The company name, if any
+ 
++# Check whether --with-company-name was given.
++if test "${with_company_name+set}" = set; then :
++  withval=$with_company_name;
++fi
+ 
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
++  if test "x$with_company_name" = xyes; then
++    as_fn_error $? "--with-company-name must have a value" "$LINENO" 5
++  elif  ! [[ $with_company_name =~ ^[[:print:]]*$ ]] ; then
++    as_fn_error $? "--with-company-name contains non-printing characters: $with_company_name" "$LINENO" 5
++  elif test "x$with_company_name" != x; then
++    COMPANY_NAME="$with_company_name"
++  fi
+ 
+   # The vendor name, if any
+ 
+diff --git a/common/autoconf/jdk-options.m4 b/common/autoconf/jdk-options.m4
+index 18ba585209..42aeb7bd61 100644
+--- a/common/autoconf/jdk-options.m4
++++ b/common/autoconf/jdk-options.m4
+@@ -539,6 +539,18 @@ AC_DEFUN_ONCE([JDKOPT_SETUP_JDK_VERSION_NUMBERS],
+   AC_SUBST(MACOSX_BUNDLE_NAME_BASE)
+   AC_SUBST(MACOSX_BUNDLE_ID_BASE)
+ 
++  # The company name, if any
++  AC_ARG_WITH(company-name, [AS_HELP_STRING([--with-company-name],
++      [Set company name.])])
++  if test "x$with_company_name" = xyes; then
++    AC_MSG_ERROR([--with-company-name must have a value])
++  elif [ ! [[ $with_company_name =~ ^[[:print:]]*$ ]] ]; then
++    AC_MSG_ERROR([--with-company-name contains non-printing characters: $with_company_name])
++  elif test "x$with_company_name" != x; then
++    COMPANY_NAME="$with_company_name"
++  fi
++  AC_SUBST(COMPANY_NAME)
++
+   # The vendor name, if any
+   AC_ARG_WITH(vendor-name, [AS_HELP_STRING([--with-vendor-name],
+       [Set vendor name. Among others, used to set the 'java.vendor'
+diff --git a/jdk/make/gensrc/GensrcMisc.gmk b/jdk/make/gensrc/GensrcMisc.gmk
+index 0e3dee5ca3..fc19b082cc 100644
+--- a/jdk/make/gensrc/GensrcMisc.gmk
++++ b/jdk/make/gensrc/GensrcMisc.gmk
+@@ -30,6 +30,11 @@ include ProfileNames.gmk
+ # string and the runtime name into the Version.java file.
+ # To be printed by java -version
+ 
++company_name =
++ifneq ($(COMPANY_NAME),N/A)
++  company_name=($(COMPANY_NAME))
++endif
++
+ $(JDK_OUTPUTDIR)/gensrc/sun/misc/Version.java \
+ $(PROFILE_VERSION_JAVA_TARGETS): \
+     $(JDK_TOPDIR)/src/share/classes/sun/misc/Version.java.template
+@@ -41,6 +46,7 @@ $(PROFILE_VERSION_JAVA_TARGETS): \
+ 	    -e 's/@@java_runtime_version@@/$(FULL_VERSION)/g' \
+ 	    -e 's/@@java_runtime_name@@/$(RUNTIME_NAME)/g' \
+ 	    -e 's/@@java_profile_name@@/$(call profile_version_name, $@)/g' \
++      -e 's/@@company_name@@/$(company_name)/g' \
+ 	    $< > $@.tmp
+ 	$(MV) $@.tmp $@
+ 
+diff --git a/jdk/src/share/classes/sun/misc/Version.java.template b/jdk/src/share/classes/sun/misc/Version.java.template
+index 32e2586e79..b1642d3f0a 100644
+--- a/jdk/src/share/classes/sun/misc/Version.java.template
++++ b/jdk/src/share/classes/sun/misc/Version.java.template
+@@ -44,6 +44,9 @@ public class Version {
+     private static final String java_runtime_version =
+         "@@java_runtime_version@@";
+ 
++    private static final String company_name =
++        "@@company_name@@";
++
+     static {
+         init();
+     }
+@@ -103,7 +106,7 @@ public class Version {
+ 
+         /* Second line: runtime version (ie, libraries). */
+ 
+-        ps.print(java_runtime_name + " (build " + java_runtime_version);
++        ps.print(java_runtime_name + " " + company_name + "(build " + java_runtime_version);
+ 
+         if (java_profile_name.length() > 0) {
+             // profile name
+@@ -120,7 +123,7 @@ public class Version {
+         String java_vm_name    = System.getProperty("java.vm.name");
+         String java_vm_version = System.getProperty("java.vm.version");
+         String java_vm_info    = System.getProperty("java.vm.info");
+-        ps.println(java_vm_name + " (build " + java_vm_version + ", " +
++        ps.println(java_vm_name + " " + company_name + "(build " + java_vm_version + ", " +
+                    java_vm_info + ")");
+     }
+ 
+-- 
+2.52.0
+

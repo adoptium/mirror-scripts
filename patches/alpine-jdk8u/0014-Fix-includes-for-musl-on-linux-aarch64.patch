@@ -1,0 +1,25 @@
+From 2df931ef8b75f00454be99001e6abb5df4f518e8 Mon Sep 17 00:00:00 2001
+From: Stephanie Crater <scrater@microsoft.com>
+Date: Mon, 23 May 2022 10:23:07 -0700
+Subject: [PATCH] Fix includes for musl on linux aarch64
+
+---
+ hotspot/src/os_cpu/linux_aarch64/vm/os_linux_aarch64.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/hotspot/src/os_cpu/linux_aarch64/vm/os_linux_aarch64.cpp b/hotspot/src/os_cpu/linux_aarch64/vm/os_linux_aarch64.cpp
+index cf476a0b27..e2cd5e60e7 100644
+--- a/hotspot/src/os_cpu/linux_aarch64/vm/os_linux_aarch64.cpp
++++ b/hotspot/src/os_cpu/linux_aarch64/vm/os_linux_aarch64.cpp
+@@ -73,7 +73,7 @@
+ # include <poll.h>
+ # include <ucontext.h>
+ 
+-#ifdef MUSL_LIBC
++#ifndef MUSL_LIBC
+ #include <fpu_control.h>
+ #else
+ #include <linux/types.h>  /* provides __u64 */
+-- 
+2.52.0
+

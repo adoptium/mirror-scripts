@@ -1,0 +1,33 @@
+From d3b53e6f024d33acce72076d3e2475bf498304b2 Mon Sep 17 00:00:00 2001
+From: George Adams <georgeadams1995@gmail.com>
+Date: Mon, 6 Dec 2021 11:08:49 +0000
+Subject: [PATCH] apply 0001-Set-vendor-information.patch
+
+---
+ jdk/src/share/native/java/lang/System.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/jdk/src/share/native/java/lang/System.c b/jdk/src/share/native/java/lang/System.c
+index 85dbe575cb..4091b71b82 100644
+--- a/jdk/src/share/native/java/lang/System.c
++++ b/jdk/src/share/native/java/lang/System.c
+@@ -110,13 +110,13 @@ Java_java_lang_System_identityHashCode(JNIEnv *env, jobject this, jobject x)
+ 
+ /* Third party may overwrite these values. */
+ #ifndef VENDOR
+-#define VENDOR "Oracle Corporation"
++#define VENDOR "Eclipse Foundation"
+ #endif
+ #ifndef VENDOR_URL
+-#define VENDOR_URL "http://java.oracle.com/"
++#define VENDOR_URL "https://adoptium.net/"
+ #endif
+ #ifndef VENDOR_URL_BUG
+-#define VENDOR_URL_BUG "http://bugreport.sun.com/bugreport/"
++#define VENDOR_URL_BUG "https://github.com/adoptium/adoptium-support/issues"
+ #endif
+ 
+ #define JAVA_MAX_SUPPORTED_VERSION 52
+-- 
+2.52.0
+

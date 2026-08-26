@@ -1,0 +1,61 @@
+From 8d8cad934909e4ce1dda33eedb476cc62511f143 Mon Sep 17 00:00:00 2001
+From: Andrew Leonard <anleonar@redhat.com>
+Date: Wed, 4 Sep 2024 14:46:37 +0100
+Subject: [PATCH] Fix error in MUSL merge conflict resolution
+
+Signed-off-by: Andrew Leonard <anleonar@redhat.com>
+---
+ common/autoconf/flags.m4               |  8 ++++----
+ common/autoconf/generated-configure.sh | 10 +++++-----
+ 2 files changed, 9 insertions(+), 9 deletions(-)
+
+diff --git a/common/autoconf/flags.m4 b/common/autoconf/flags.m4
+index 46245bafbd..2cef5aa3c5 100644
+--- a/common/autoconf/flags.m4
++++ b/common/autoconf/flags.m4
+@@ -491,10 +491,10 @@ AC_DEFUN_ONCE([FLAGS_SETUP_COMPILER_FLAGS_FOR_JDK],
+   LDFLAGS_JDK="${LDFLAGS_JDK} $with_extra_ldflags"
+ 
+   # Hotspot needs these set in their legacy form
+-  LEGACY_HOST_CFLAGS="$LEGACY_HOST_CFLAGS $with_extra_cflags"
+-  LEGACY_TARGET_CFLAGS="$LEGACY_TARGET_CFLAGS $with_extra_cflags"
+-  LEGACY_HOST_CXXFLAGS="$LEGACY_HOST_CXXFLAGS $with_extra_cxxflags"
+-  LEGACY_TARGET_CXXFLAGS="$LEGACY_TARGET_CXXFLAGS $with_extra_cxxflags"
++  LEGACY_HOST_CFLAGS="$LEGACY_HOST_CFLAGS $with_extra_cflags ${DEFINE_LIBC}"
++  LEGACY_TARGET_CFLAGS="$LEGACY_TARGET_CFLAGS $with_extra_cflags ${DEFINE_LIBC}"
++  LEGACY_HOST_CXXFLAGS="$LEGACY_HOST_CXXFLAGS $with_extra_cxxflags ${DEFINE_LIBC}"
++  LEGACY_TARGET_CXXFLAGS="$LEGACY_TARGET_CXXFLAGS $with_extra_cxxflags ${DEFINE_LIBC}"
+   LEGACY_HOST_LDFLAGS="$LEGACY_HOST_LDFLAGS $with_extra_ldflags"
+   LEGACY_TARGET_LDFLAGS="$LEGACY_TARGET_LDFLAGS $with_extra_ldflags"
+   LEGACY_HOST_ASFLAGS="$with_extra_asflags"
+diff --git a/common/autoconf/generated-configure.sh b/common/autoconf/generated-configure.sh
+index e89a61a6c5..2eb58c981a 100644
+--- a/common/autoconf/generated-configure.sh
++++ b/common/autoconf/generated-configure.sh
+@@ -5016,7 +5016,7 @@ VS_TOOLSET_SUPPORTED_2022=true
+ #CUSTOM_AUTOCONF_INCLUDE
+ 
+ # Do not change or remove the following line, it is needed for consistency checks:
+-DATE_WHEN_GENERATED=1725268775
++DATE_WHEN_GENERATED=1725457575
+ 
+ ###############################################################################
+ #
+@@ -44957,10 +44957,10 @@ fi
+   LDFLAGS_JDK="${LDFLAGS_JDK} $with_extra_ldflags"
+ 
+   # Hotspot needs these set in their legacy form
+-  LEGACY_HOST_CFLAGS="$LEGACY_HOST_CFLAGS $with_extra_cflags"
+-  LEGACY_TARGET_CFLAGS="$LEGACY_TARGET_CFLAGS $with_extra_cflags"
+-  LEGACY_HOST_CXXFLAGS="$LEGACY_HOST_CXXFLAGS $with_extra_cxxflags"
+-  LEGACY_TARGET_CXXFLAGS="$LEGACY_TARGET_CXXFLAGS $with_extra_cxxflags"
++  LEGACY_HOST_CFLAGS="$LEGACY_HOST_CFLAGS $with_extra_cflags ${DEFINE_LIBC}"
++  LEGACY_TARGET_CFLAGS="$LEGACY_TARGET_CFLAGS $with_extra_cflags ${DEFINE_LIBC}"
++  LEGACY_HOST_CXXFLAGS="$LEGACY_HOST_CXXFLAGS $with_extra_cxxflags ${DEFINE_LIBC}"
++  LEGACY_TARGET_CXXFLAGS="$LEGACY_TARGET_CXXFLAGS $with_extra_cxxflags ${DEFINE_LIBC}"
+   LEGACY_HOST_LDFLAGS="$LEGACY_HOST_LDFLAGS $with_extra_ldflags"
+   LEGACY_TARGET_LDFLAGS="$LEGACY_TARGET_LDFLAGS $with_extra_ldflags"
+   LEGACY_HOST_ASFLAGS="$with_extra_asflags"
+-- 
+2.52.0
+

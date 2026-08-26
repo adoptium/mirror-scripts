@@ -1,0 +1,199 @@
+From 129e671a46a50cde80f7aca76fcff8c1357fcd30 Mon Sep 17 00:00:00 2001
+From: Stephanie Crater <scrater@microsoft.com>
+Date: Mon, 7 Mar 2022 17:19:27 -0800
+Subject: [PATCH] Detect C library and define LIBC variable
+
+---
+ common/autoconf/build-aux/config.guess | 11 ++++++++
+ common/autoconf/build-aux/config.sub   |  5 ++++
+ common/autoconf/flags.m4               | 14 +++++++---
+ common/autoconf/platform.m4            | 38 ++++++++++++++++++++++++--
+ common/autoconf/spec.gmk.in            |  4 +++
+ 5 files changed, 66 insertions(+), 6 deletions(-)
+
+diff --git a/common/autoconf/build-aux/config.guess b/common/autoconf/build-aux/config.guess
+index 355c91e4eb..5494ba2546 100644
+--- a/common/autoconf/build-aux/config.guess
++++ b/common/autoconf/build-aux/config.guess
+@@ -30,6 +30,17 @@
+ DIR=`dirname $0`
+ OUT=`. $DIR/autoconf-config.guess`
+ 
++# Detect C library.
++# Use '-gnu'  suffix on systems that use glibc.
++# Use '-musl' suffix on systems that use the musl libc.
++echo $OUT | grep -- -linux- > /dev/null 2> /dev/null
++if test $? = 0; then
++  ldd_version=`ldd --version 2>&1 | head -1 | cut -f1 -d' '`
++  if [ x"${ldd_version}" = x"musl" ]; then
++    OUT=`echo $OUT | sed 's/-gnu/-musl/'`
++  fi
++fi
++
+ # Test and fix solaris on x86_64
+ echo $OUT | grep i386-pc-solaris > /dev/null 2> /dev/null
+ if test $? = 0; then
+diff --git a/common/autoconf/build-aux/config.sub b/common/autoconf/build-aux/config.sub
+index cc958da946..a665b00fcc 100644
+--- a/common/autoconf/build-aux/config.sub
++++ b/common/autoconf/build-aux/config.sub
+@@ -29,6 +29,11 @@
+ 
+ DIR=`dirname $0`
+ 
++if echo $* | grep linux-musl >/dev/null ; then
++    echo $*
++    exit
++fi
++
+ # First, filter out everything that doesn't begin with "aarch64-"
+ if ! echo $* | grep '^aarch64-' >/dev/null ; then
+     . $DIR/autoconf-config.sub "$@"
+diff --git a/common/autoconf/flags.m4 b/common/autoconf/flags.m4
+index 73b2e76511..4cfaa83d9b 100644
+--- a/common/autoconf/flags.m4
++++ b/common/autoconf/flags.m4
+@@ -474,13 +474,19 @@ AC_DEFUN_ONCE([FLAGS_SETUP_COMPILER_FLAGS_FOR_JDK],
+   AC_ARG_WITH(extra-asflags, [AS_HELP_STRING([--with-extra-asflags],
+       [extra flags to be passed to the assembler])])
+ 
+-  CFLAGS_JDK="${CFLAGS_JDK} $with_extra_cflags"
+-  CXXFLAGS_JDK="${CXXFLAGS_JDK} $with_extra_cxxflags"
++  # Define MUSL_LIBC
++  DEFINE_LIBC=""
++  if test "x$OPENJDK_TARGET_LIBC" = xmusl; then
++    DEFINE_LIBC="-DMUSL_LIBC"
++  fi
++
++  CFLAGS_JDK="${CFLAGS_JDK} $with_extra_cflags ${DEFINE_LIBC}"
++  CXXFLAGS_JDK="${CXXFLAGS_JDK} $with_extra_cxxflags ${DEFINE_LIBC}"
+   LDFLAGS_JDK="${LDFLAGS_JDK} $with_extra_ldflags"
+ 
+   # Hotspot needs these set in their legacy form
+-  LEGACY_EXTRA_CFLAGS="$LEGACY_EXTRA_CFLAGS $with_extra_cflags"
+-  LEGACY_EXTRA_CXXFLAGS="$LEGACY_EXTRA_CXXFLAGS $with_extra_cxxflags"
++  LEGACY_EXTRA_CFLAGS="$LEGACY_EXTRA_CFLAGS $with_extra_cflags $DEFINE_LIBC"
++  LEGACY_EXTRA_CXXFLAGS="$LEGACY_EXTRA_CXXFLAGS $with_extra_cxxflags $DEFINE_LIBC"
+   LEGACY_EXTRA_LDFLAGS="$LEGACY_EXTRA_LDFLAGS $with_extra_ldflags"
+   LEGACY_EXTRA_ASFLAGS="$with_extra_asflags"
+ 
+diff --git a/common/autoconf/platform.m4 b/common/autoconf/platform.m4
+index 51df988f61..a133cfc7a2 100644
+--- a/common/autoconf/platform.m4
++++ b/common/autoconf/platform.m4
+@@ -149,6 +149,24 @@ AC_DEFUN([PLATFORM_EXTRACT_VARS_FROM_OS],
+   esac
+ ])
+ 
++# Support macro for PLATFORM_EXTRACT_TARGET_AND_BUILD.
++# Converts autoconf style OS name to OpenJDK style, into
++# VAR_LIBC.
++AC_DEFUN([PLATFORM_EXTRACT_VARS_FROM_LIBC],
++[
++  case "$1" in
++    *linux*-musl)
++      VAR_LIBC=musl
++      ;;
++    *linux*-gnu)
++      VAR_LIBC=gnu
++      ;;
++    *)
++      VAR_LIBC=default
++      ;;
++  esac
++])
++
+ # Expects $host_os $host_cpu $build_os and $build_cpu
+ # and $with_target_bits to have been setup!
+ #
+@@ -166,9 +184,10 @@ AC_DEFUN([PLATFORM_EXTRACT_TARGET_AND_BUILD],
+   AC_SUBST(OPENJDK_TARGET_AUTOCONF_NAME)
+   AC_SUBST(OPENJDK_BUILD_AUTOCONF_NAME)
+ 
+-  # Convert the autoconf OS/CPU value to our own data, into the VAR_OS/CPU variables.
++  # Convert the autoconf OS/CPU value to our own data, into the VAR_OS/CPU/LIBC variables.
+   PLATFORM_EXTRACT_VARS_FROM_OS($build_os)
+   PLATFORM_EXTRACT_VARS_FROM_CPU($build_cpu)
++  PLATFORM_EXTRACT_VARS_FROM_LIBC($build_os)
+   # ..and setup our own variables. (Do this explicitely to facilitate searching)
+   OPENJDK_BUILD_OS="$VAR_OS"
+   OPENJDK_BUILD_OS_API="$VAR_OS_API"
+@@ -177,6 +196,7 @@ AC_DEFUN([PLATFORM_EXTRACT_TARGET_AND_BUILD],
+   OPENJDK_BUILD_CPU_ARCH="$VAR_CPU_ARCH"
+   OPENJDK_BUILD_CPU_BITS="$VAR_CPU_BITS"
+   OPENJDK_BUILD_CPU_ENDIAN="$VAR_CPU_ENDIAN"
++  OPENJDK_BUILD_LIBC="$VAR_LIBC"
+   AC_SUBST(OPENJDK_BUILD_OS)
+   AC_SUBST(OPENJDK_BUILD_OS_API)
+   AC_SUBST(OPENJDK_BUILD_OS_ENV)
+@@ -184,13 +204,20 @@ AC_DEFUN([PLATFORM_EXTRACT_TARGET_AND_BUILD],
+   AC_SUBST(OPENJDK_BUILD_CPU_ARCH)
+   AC_SUBST(OPENJDK_BUILD_CPU_BITS)
+   AC_SUBST(OPENJDK_BUILD_CPU_ENDIAN)
++  AC_SUBST(OPENJDK_BUILD_LIBC)
+ 
+   AC_MSG_CHECKING([openjdk-build os-cpu])
+   AC_MSG_RESULT([$OPENJDK_BUILD_OS-$OPENJDK_BUILD_CPU])
+ 
+-  # Convert the autoconf OS/CPU value to our own data, into the VAR_OS/CPU variables.
++  if test "x$OPENJDK_BUILD_OS" = "xlinux"; then
++    AC_MSG_CHECKING([openjdk-build C library])
++    AC_MSG_RESULT([$OPENJDK_BUILD_LIBC])
++  fi
++
++  # Convert the autoconf OS/CPU value to our own data, into the VAR_OS/CPU/LIBC variables.
+   PLATFORM_EXTRACT_VARS_FROM_OS($host_os)
+   PLATFORM_EXTRACT_VARS_FROM_CPU($host_cpu)
++  PLATFORM_EXTRACT_VARS_FROM_LIBC($host_os)
+   # ... and setup our own variables. (Do this explicitely to facilitate searching)
+   OPENJDK_TARGET_OS="$VAR_OS"
+   OPENJDK_TARGET_OS_API="$VAR_OS_API"
+@@ -199,6 +226,7 @@ AC_DEFUN([PLATFORM_EXTRACT_TARGET_AND_BUILD],
+   OPENJDK_TARGET_CPU_ARCH="$VAR_CPU_ARCH"
+   OPENJDK_TARGET_CPU_BITS="$VAR_CPU_BITS"
+   OPENJDK_TARGET_CPU_ENDIAN="$VAR_CPU_ENDIAN"
++  OPENJDK_TARGET_LIBC="$VAR_LIBC"
+   AC_SUBST(OPENJDK_TARGET_OS)
+   AC_SUBST(OPENJDK_TARGET_OS_API)
+   AC_SUBST(OPENJDK_TARGET_OS_ENV)
+@@ -206,9 +234,15 @@ AC_DEFUN([PLATFORM_EXTRACT_TARGET_AND_BUILD],
+   AC_SUBST(OPENJDK_TARGET_CPU_ARCH)
+   AC_SUBST(OPENJDK_TARGET_CPU_BITS)
+   AC_SUBST(OPENJDK_TARGET_CPU_ENDIAN)
++  AC_SUBST(OPENJDK_TARGET_LIBC)
+ 
+   AC_MSG_CHECKING([openjdk-target os-cpu])
+   AC_MSG_RESULT([$OPENJDK_TARGET_OS-$OPENJDK_TARGET_CPU])
++
++  if test "x$OPENJDK_TARGET_OS" = "xlinux"; then
++    AC_MSG_CHECKING([openjdk-target C library])
++    AC_MSG_RESULT([$OPENJDK_TARGET_LIBC])
++  fi
+ ])
+ 
+ # Check if a reduced build (32-bit on 64-bit platforms) is requested, and modify behaviour
+diff --git a/common/autoconf/spec.gmk.in b/common/autoconf/spec.gmk.in
+index 506cf61708..a5da573a73 100644
+--- a/common/autoconf/spec.gmk.in
++++ b/common/autoconf/spec.gmk.in
+@@ -85,6 +85,8 @@ OPENJDK_TARGET_CPU_ARCH:=@OPENJDK_TARGET_CPU_ARCH@
+ OPENJDK_TARGET_CPU_BITS:=@OPENJDK_TARGET_CPU_BITS@
+ OPENJDK_TARGET_CPU_ENDIAN:=@OPENJDK_TARGET_CPU_ENDIAN@
+ 
++OPENJDK_TARGET_LIBC:=@OPENJDK_TARGET_LIBC@
++
+ COMPILE_TYPE:=@COMPILE_TYPE@
+ 
+ # Legacy support
+@@ -108,6 +110,8 @@ OPENJDK_BUILD_CPU_ARCH:=@OPENJDK_BUILD_CPU_ARCH@
+ OPENJDK_BUILD_CPU_BITS:=@OPENJDK_BUILD_CPU_BITS@
+ OPENJDK_BUILD_CPU_ENDIAN:=@OPENJDK_BUILD_CPU_ENDIAN@
+ 
++OPENJDK_BUILD_LIBC:=@OPENJDK_BUILD_LIBC@
++
+ # Legacy OS values for use in release file.
+ REQUIRED_OS_NAME:=@REQUIRED_OS_NAME@
+ REQUIRED_OS_VERSION:=@REQUIRED_OS_VERSION@
+-- 
+2.52.0
+

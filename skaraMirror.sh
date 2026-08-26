@@ -122,17 +122,19 @@ function performMergeIntoReleaseFromMaster() {
         echo "Skipping top-level $patchName (overridden by patches/$GITHUB_REPO/$patchName)"
       else
         echo "Applying top-level patch: $patchName"
-        git am "$patchFile" || exit 1
+        git am --ignore-whitespace -3 "$patchFile" || exit 1
       fi
     done
 
     # Step 2: Apply repo-specific patches from patches/<GITHUB_REPO>/ if that folder exists
+    # Use --ignore-whitespace -3 for 3-way merge fallback, which handles context mismatches
+    # when patches were generated against an older version of upstream files
     if [ -d "$PATCHES$GITHUB_REPO" ]; then
       for patchFile in "$PATCHES$GITHUB_REPO"/*.patch; do
         [ -f "$patchFile" ] || continue
         patchName=$(basename "$patchFile")
         echo "Applying repo-specific patch: $patchName"
-        git am "$patchFile" || exit 1
+        git am --ignore-whitespace -3 "$patchFile" || exit 1
       done
     fi
   else
@@ -297,9 +299,15 @@ function performMergeIntoDevFromMaster() {
 
 checkArgs $#
 
-SKARA_REPO="https://github.com/openjdk/$1"
 GITHUB_REPO="$1"
 REPO=${2:-"git@github.com:adoptium/$GITHUB_REPO"}
+
+# alpine-jdk8u mirrors from the upstream jdk8u Skara repo
+if [[ "${GITHUB_REPO}" == "alpine-jdk8u" ]]; then
+  SKARA_REPO="https://github.com/openjdk/jdk8u"
+else
+  SKARA_REPO="https://github.com/openjdk/${GITHUB_REPO}"
+fi
 
 # Determine the default branch of the upstream Skara repo via git ls-remote (no API token needed)
 SKARA_DEFAULT_BRANCH=$(git ls-remote --symref "${SKARA_REPO}" HEAD | grep '^ref:' | sed 's|ref: refs/heads/||;s/[[:space:]].*//' | tr -d '[:space:]')
