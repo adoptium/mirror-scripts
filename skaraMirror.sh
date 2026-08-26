@@ -32,6 +32,48 @@ function checkArgs() {
   fi
 }
 
+# For jdk8u-based repos, common/autoconf/generated-configure.sh is a build-generated file
+# that frequently conflicts during merges/rebases/patches because it is regenerated from
+# common/autoconf/*.m4 sources. This function checks if it is the ONLY conflict and if so,
+# regenerates it via autogen.sh and stages the result.
+# Must be called from within the repo working directory.
+# Returns 0 if the conflict was resolved, 1 if there are other conflicts (caller must fail).
+function resolveGeneratedConfigureConflict() {
+  local GENERATED_CONFIGURE="common/autoconf/generated-configure.sh"
+  local AUTOGEN="common/autoconf/autogen.sh"
+
+  # Only applies to jdk8u-based repos that have the autogen script
+  if [[ "${VERSION}" != "8" ]]; then
+    return 1
+  fi
+
+  # Get list of conflicted files
+  local conflicts
+  conflicts=$(git diff --name-only --diff-filter=U)
+
+  if [[ -z "$conflicts" ]]; then
+    return 1
+  fi
+
+  # Check if generated-configure.sh is the only conflict
+  if [[ "$conflicts" != "$GENERATED_CONFIGURE" ]]; then
+    echo "ERROR: Conflicts exist in files other than $GENERATED_CONFIGURE:"
+    echo "$conflicts"
+    return 1
+  fi
+
+  echo "Resolving $GENERATED_CONFIGURE conflict by regenerating via autogen.sh"
+  if [ ! -f "$AUTOGEN" ]; then
+    echo "ERROR: $AUTOGEN not found — cannot regenerate $GENERATED_CONFIGURE"
+    return 1
+  fi
+
+  bash "$AUTOGEN" || return 1
+  git add "$GENERATED_CONFIGURE" || return 1
+  echo "Successfully regenerated and staged $GENERATED_CONFIGURE"
+  return 0
+}
+
 function cloneGitHubRepo() {
   cd "$WORKSPACE" || exit 1
   # If we don't have a $GITHUB_REPO locally then clone it from adoptium/$GITHUB_REPO.git
@@ -76,7 +118,14 @@ function addSkaralUpstream() {
 function performMergeFromSkaraIntoGit() {
   git fetch skara --tags
 
-  git rebase "skara/$BRANCH" "$BRANCH"
+  if ! git rebase "skara/$BRANCH" "$BRANCH" ; then
+    if resolveGeneratedConfigureConflict ; then
+      git rebase --continue || exit 1
+    else
+      git rebase --abort
+      exit 1
+    fi
+  fi
 
   git push -u origin "$BRANCH" || exit 1
   git push origin "$BRANCH" --tags || exit 1
@@ -122,7 +171,18 @@ function performMergeIntoReleaseFromMaster() {
         echo "Skipping top-level $patchName (overridden by patches/$GITHUB_REPO/$patchName)"
       else
         echo "Applying top-level patch: $patchName"
-        git am --ignore-whitespace -3 "$patchFile" || exit 1
+        if [[ ! -s "$patchFile" ]]; then
+          echo "Skipping empty patch: $patchName"
+          continue
+        fi
+        if ! git am --ignore-whitespace -3 "$patchFile" ; then
+          if resolveGeneratedConfigureConflict ; then
+            git am --continue || exit 1
+          else
+            git am --abort
+            exit 1
+          fi
+        fi
       fi
     done
 
@@ -134,7 +194,18 @@ function performMergeIntoReleaseFromMaster() {
         [ -f "$patchFile" ] || continue
         patchName=$(basename "$patchFile")
         echo "Applying repo-specific patch: $patchName"
-        git am --ignore-whitespace -3 "$patchFile" || exit 1
+        if [[ ! -s "$patchFile" ]]; then
+          echo "Skipping empty patch: $patchName"
+          continue
+        fi
+        if ! git am --ignore-whitespace -3 "$patchFile" ; then
+          if resolveGeneratedConfigureConflict ; then
+            git am --continue || exit 1
+          else
+            git am --abort
+            exit 1
+          fi
+        fi
       done
     fi
   else
@@ -185,7 +256,14 @@ function performMergeIntoReleaseFromMaster() {
       fi
       if [[ "$mergeTag" == true ]]; then
         echo "Merging build tag $tag into $RELEASE_BRANCH branch"
-        git merge -m"Merging $tag into $RELEASE_BRANCH" $tag || exit 1
+        if ! git merge -m"Merging $tag into $RELEASE_BRANCH" $tag ; then
+          if resolveGeneratedConfigureConflict ; then
+            git commit --no-edit || exit 1
+          else
+            git merge --abort
+            exit 1
+          fi
+        fi
         git tag -a "${tag}_adopt" -m "Merged $tag into $RELEASE_BRANCH" || exit 1
         newAdoptTags="${newAdoptTags} ${tag}_adopt"
       fi
@@ -281,10 +359,24 @@ function performMergeIntoDevFromMaster() {
 
   # Merge master "HEAD"
   echo "Merging origin/$BRANCH HEAD into $DEV_BRANCH branch"
-  git merge -m"Merging origin/$BRANCH HEAD into $DEV_BRANCH" origin/"$BRANCH" || exit 1
+  if ! git merge -m"Merging origin/$BRANCH HEAD into $DEV_BRANCH" origin/"$BRANCH" ; then
+    if resolveGeneratedConfigureConflict ; then
+      git commit --no-edit || exit 1
+    else
+      git merge --abort
+      exit 1
+    fi
+  fi
 
   # Merge latest patches from "release" branch
-  git merge -m"Merging latest patches from $RELEASE_BRANCH branch" "origin/$RELEASE_BRANCH" || exit 1
+  if ! git merge -m"Merging latest patches from $RELEASE_BRANCH branch" "origin/$RELEASE_BRANCH" ; then
+    if resolveGeneratedConfigureConflict ; then
+      git commit --no-edit || exit 1
+    else
+      git merge --abort
+      exit 1
+    fi
+  fi
 
   if git rev-parse -q --verify "origin/$DEV_BRANCH" ; then
     git --no-pager log --oneline "origin/$DEV_BRANCH..$DEV_BRANCH"
