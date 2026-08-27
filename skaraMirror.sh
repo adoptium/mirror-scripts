@@ -407,13 +407,19 @@ function performMergeIntoDevFromMaster() {
 checkArgs $#
 
 GITHUB_REPO="$1"
-REPO=${2:-"git@github.com:adoptium/$GITHUB_REPO"}
 
 # alpine-jdk8u mirrors from the upstream jdk8u Skara repo
 if [[ "${GITHUB_REPO}" == "alpine-jdk8u" ]]; then
   SKARA_REPO="https://github.com/openjdk/jdk8u"
 else
   SKARA_REPO="https://github.com/openjdk/${GITHUB_REPO}"
+fi
+
+# aarch32-port-jdk8u mirrors to the Adoptium repo named aarch32-jdk8u (without the "port-" prefix)
+if [[ "${GITHUB_REPO}" == "aarch32-port-jdk8u" ]]; then
+  REPO=${2:-"git@github.com:adoptium/aarch32-jdk8u"}
+else
+  REPO=${2:-"git@github.com:adoptium/$GITHUB_REPO"}
 fi
 
 # Determine the default branch of the upstream Skara repo via git ls-remote (no API token needed)
