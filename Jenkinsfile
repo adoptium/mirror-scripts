@@ -89,10 +89,12 @@ pipeline {
                             if (!branch) continue
                             // Skip upstream PR branches — there can be hundreds and they are not mirrored
                             if (branch.startsWith('pr/')) continue
-                            def commitEpochStr = sh(
-                                script: "git -C '${tmpBareClone}' log -1 --format='%ct' '${branch}'",
-                                returnStdout: true
-                            ).trim()
+                            def commitEpochStr = withEnv(["BRANCH_TO_CHECK=${branch}"]) {
+                                sh(
+                                    script: "git -C '${tmpBareClone}' log -1 --format='%ct' -- \"\$BRANCH_TO_CHECK\"",
+                                    returnStdout: true
+                                ).trim()
+                            }
                             if (!commitEpochStr.isLong()) {
                                 error("Could not determine commit date for branch '${branch}': unexpected output: '${commitEpochStr}'")
                             }
@@ -140,11 +142,15 @@ pipeline {
 
                     for (branch in branchList) {
                         echo "--- Mirroring branch: ${branch} ---"
-                        withEnv(["BRANCH=${branch}"]) {
-                            sh """
+                        withEnv([
+                            "BRANCH=${branch}",
+                            "SKARA_REPO_ARG=${params.SKARA_REPO}",
+                            "MIRROR_REPO_ARG=${mirrorRepoArg}"
+                        ]) {
+                            sh '''
                                 git --version
-                                bash ./skaraMirror.sh '${params.SKARA_REPO}' ${mirrorRepoArg ? "'${mirrorRepoArg}'" : ''}
-                            """
+                                bash ./skaraMirror.sh "$SKARA_REPO_ARG" "$MIRROR_REPO_ARG"
+                            '''
                         }
                     }
                 }
