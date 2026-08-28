@@ -462,7 +462,11 @@ fi
 jdk11plus_tag_sort1="sort -t+ -k2,2n"
 # Second, (stable) sort on (V), (W), (X), (P): P(Patch) is optional and defaulted to "0"
 jdk11plus_tag_sort2="sort -t. -k2,2n -k3,3n -k4,4n -k5,5n"
-# Ignore "..+0" branch fork point tags 
+# Ignore "..+0" branch fork point tags — these mark where the next version branched off master
+# and are not real builds. Build tags for the next version (e.g. jdk-21.0.15+1) only appear on
+# that new branch, never on master, so +0 is always the last visible tag for that version on
+# master. Including it would advance currentReleaseTag past any not-yet-tagged current-version
+# builds (e.g. jdk-21.0.14 GA), permanently locking them out of the merge loop.
 jdk11plus_sort_tags_cmd="grep -v _adopt | grep -v '\+0$' | sed 's/jdk-/jdk./g' | sed 's/+/.0.0+/g' | $jdk11plus_tag_sort1 | nl -n rz | $jdk11plus_tag_sort2 | sed 's/\.0\.0+/+/g' | cut -f2- | sed 's/jdk./jdk-/g'"
 
 # JDK8 tag sorting:
@@ -472,14 +476,22 @@ jdk11plus_sort_tags_cmd="grep -v _adopt | grep -v '\+0$' | sed 's/jdk-/jdk./g' |
 jdk8_tag_sort1="sort -tb -k2,2n"
 # Second, (stable) sort on (V), (W)
 jdk8_tag_sort2="sort -tu -k2,2n"
-# Ignore "..-b00" branch fork point tags
-jdk8_sort_tags_cmd="grep -v _adopt | grep -v '\-b00$' | $jdk8_tag_sort1 | nl -n rz | $jdk8_tag_sort2  | cut -f2-"
+# Ignore "..-b00" branch fork point tags (same reasoning as jdk11+ above).
+# Note: no "$" anchor — aarch32 tags embed -b00 mid-string, e.g. jdk8u504-b00-aarch32-20260731.
+jdk8_sort_tags_cmd="grep -v _adopt | grep -v '\-b00' | $jdk8_tag_sort1 | nl -n rz | $jdk8_tag_sort2  | cut -f2-"
 
 
 if [[ "${VERSION}" == "8" ]]; then
   jdk_sort_tags_cmd="${jdk8_sort_tags_cmd}"
 else
   jdk_sort_tags_cmd="${jdk11plus_sort_tags_cmd}"
+fi
+
+# For aarch32-port-jdk8u, the upstream Skara repo also contains non-aarch32 tags (inherited from
+# the parent jdk8u repo). Prepend a filter so only tags containing "aarch32" are considered —
+# this prevents non-aarch32 tags from being picked as the branch-point or merged into release/dev.
+if [[ "${GITHUB_REPO}" == "aarch32-port-jdk8u" ]]; then
+  jdk_sort_tags_cmd="grep 'aarch32' | ${jdk_sort_tags_cmd}"
 fi
 
 cloneGitHubRepo
