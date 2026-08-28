@@ -27,8 +27,8 @@ pipeline {
         stage('Validate Parameters') {
             steps {
                 script {
-                    if (!params.JDK_VERSION?.trim()) {
-                        error('JDK_VERSION parameter is required.')
+                    if (!params.SKARA_REPO?.trim()) {
+                        error('SKARA_REPO parameter is required.')
                     }
                 }
             }
@@ -37,7 +37,7 @@ pipeline {
         stage('Determine Branches') {
             steps {
                 script {
-                    def skaraRepo = "https://github.com/openjdk/${params.JDK_VERSION}"
+                    def skaraRepo = "https://github.com/openjdk/${params.SKARA_REPO}"
                     echo "Upstream SKARA_REPO: ${skaraRepo}"
 
                     // Determine default branch via git ls-remote --symref (no API token needed)
@@ -54,7 +54,7 @@ pipeline {
 
                     // Do a temporary bare clone with --filter=blob:none to get branch refs and
                     // commit dates without downloading any file content.
-                    def tmpBareClone = "${env.WORKSPACE}/tmp-bare-${params.JDK_VERSION}"
+                    def tmpBareClone = "${env.WORKSPACE}/tmp-bare-${params.SKARA_REPO}"
                     sh "rm -rf '${tmpBareClone}'"
                     sh "git clone --bare --filter=blob:none '${skaraRepo}' '${tmpBareClone}'"
 
@@ -119,7 +119,7 @@ pipeline {
             }
             steps {
                 script {
-                    def workspaceDir = "${env.WORKSPACE}/workspace/${params.JDK_VERSION}"
+                    def workspaceDir = "${env.WORKSPACE}/workspace/${params.SKARA_REPO}"
                     echo "Cleaning mirror workspace: ${workspaceDir}"
                     sh "rm -rf '${workspaceDir}'"
                 }
@@ -137,7 +137,7 @@ pipeline {
                         withEnv(["BRANCH=${branch}"]) {
                             sh """
                                 git --version
-                                bash ./skaraMirror.sh '${params.JDK_VERSION}' ${mirrorRepoArg ? "'${mirrorRepoArg}'" : ''}
+                                bash ./skaraMirror.sh '${params.SKARA_REPO}' ${mirrorRepoArg ? "'${mirrorRepoArg}'" : ''}
                             """
                         }
                     }
@@ -158,6 +158,20 @@ pipeline {
         }
         failure {
             echo 'Mirror job failed.'
+            script {
+                // Only notify Slack during 09:00–11:59 UTC to avoid hourly spam.
+                def utcHour = sh(script: "date -u +%H", returnStdout: true).trim().toInteger()
+                if (utcHour >= 9 && utcHour < 12) {
+                    slackSend(
+                        channel: '#build',
+                        color: 'danger',
+                        message: "Skara mirror job *FAILED* for `${params.SKARA_REPO ?: 'unknown'}` " +
+                                 "(<${env.BUILD_URL}console|Console>)"
+                    )
+                } else {
+                    echo "Outside Slack notification window (UTC hour: ${utcHour}) — skipping Slack alert."
+                }
+            }
         }
         aborted {
             echo 'Mirror job was aborted.'
