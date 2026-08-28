@@ -212,6 +212,30 @@ function performMergeIntoReleaseFromMaster() {
       done
     fi
 
+    # For JDK 8 repos, regenerate generated-configure.sh after all patches have been applied.
+    # company_name.patch modifies jdk-options.m4 but does not include the generated file
+    # (unlike the alpine-jdk8u variant which bundles both). The JDK 8 configure wrapper
+    # runs the checked-in generated script, so without regeneration --with-company-name
+    # is unavailable at build time. autogen.sh is idempotent — if the patch already
+    # included the generated file (e.g. alpine-jdk8u/0002) this produces no diff.
+    if [[ "${VERSION}" == "8" ]]; then
+      local AUTOGEN="common/autoconf/autogen.sh"
+      local GENERATED="common/autoconf/generated-configure.sh"
+      if [ -f "$AUTOGEN" ]; then
+        echo "Regenerating $GENERATED after patch application"
+        bash "$AUTOGEN" || exit 1
+        if ! git diff --quiet "$GENERATED" ; then
+          git add "$GENERATED"
+          git commit --no-edit -m "Regenerate generated-configure.sh after Adoptium patches" || exit 1
+          echo "Committed regenerated $GENERATED"
+        else
+          echo "$GENERATED already up to date, no commit needed"
+        fi
+      else
+        echo "WARNING: $AUTOGEN not found — skipping $GENERATED regeneration"
+      fi
+    fi
+
     # If this is a brand new release branch, tag the base build tag with _adopt now that
     # patches have been applied — the merge loop below will find no new tags to process
     if [[ -n "$NEW_RELEASE_BRANCH_TAG" ]]; then
