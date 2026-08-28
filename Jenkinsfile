@@ -165,8 +165,9 @@ pipeline {
                     slackSend(
                         channel: '#build',
                         color: 'danger',
-                        message: "Skara mirror job *FAILED* for `${params.SKARA_REPO ?: 'unknown'}` " +
-                                 "(<${env.BUILD_URL}console|Console>)"
+                        message: "Skara mirror job *FAILED* for `${params.SKARA_REPO ?: 'unknown'}`" +
+                                 (params.ADOPTIUM_MIRROR_REPO?.trim() ? " → `${params.ADOPTIUM_MIRROR_REPO}`" : '') +
+                                 " (<${env.BUILD_URL}console|Console>)"
                     )
                 } else {
                     echo "Outside Slack notification window (UTC hour: ${utcHour}) — skipping Slack alert."
