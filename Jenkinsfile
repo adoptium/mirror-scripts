@@ -30,6 +30,9 @@ pipeline {
                     if (!params.SKARA_REPO?.trim()) {
                         error('SKARA_REPO parameter is required.')
                     }
+                    if (!(params.SKARA_REPO ==~ /[A-Za-z0-9._-]+/)) {
+                        error('SKARA_REPO must be a valid GitHub repository name.')
+                    }
                 }
             }
         }
@@ -37,7 +40,8 @@ pipeline {
         stage('Determine Branches') {
             steps {
                 script {
-                    def skaraRepo = "https://github.com/openjdk/${params.SKARA_REPO}"
+                    def upstreamRepo = params.SKARA_REPO == 'alpine-jdk8u' ? 'jdk8u' : params.SKARA_REPO
+                    def skaraRepo = "https://github.com/openjdk/${upstreamRepo}"
                     echo "Upstream SKARA_REPO: ${skaraRepo}"
 
                     // Determine default branch via git ls-remote --symref (no API token needed)
