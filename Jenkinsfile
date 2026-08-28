@@ -83,6 +83,8 @@ pipeline {
                         for (branch in allBranchesRaw.split('\n')) {
                             branch = branch.trim()
                             if (!branch) continue
+                            // Skip upstream PR branches — there can be hundreds and they are not mirrored
+                            if (branch.startsWith('pr/')) continue
                             def commitEpochStr = sh(
                                 script: "git -C '${tmpBareClone}' log -1 --format='%ct' '${branch}'",
                                 returnStdout: true
