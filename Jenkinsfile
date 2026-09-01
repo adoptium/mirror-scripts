@@ -148,10 +148,19 @@ pipeline {
                             "SKARA_REPO_ARG=${params.SKARA_REPO}",
                             "MIRROR_REPO_ARG=${mirrorRepoArg}"
                         ]) {
-                            sh '''
-                                git --version
-                                bash ./skaraMirror.sh "$SKARA_REPO_ARG" "$MIRROR_REPO_ARG"
-                            '''
+                            def mirrorSteps = {
+                                sh '''
+                                    git --version
+                                    bash ./skaraMirror.sh "$SKARA_REPO_ARG" "$MIRROR_REPO_ARG"
+                                '''
+                            }
+                            if (params.SSH_CREDENTIAL_ID?.trim()) {
+                                sshagent(credentials: [params.SSH_CREDENTIAL_ID]) {
+                                    mirrorSteps()
+                                }
+                            } else {
+                                mirrorSteps()
+                            }
                         }
                     }
                 }
