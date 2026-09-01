@@ -64,8 +64,9 @@ pipeline {
 
                     try {
                         // Staleness threshold: 90 days ago as unix epoch
+                        // GNU date (Linux): -d '90 days ago'; BSD date (macOS): -v-90d
                         def threeMonthsAgoStr = sh(
-                            script: "date -d '90 days ago' +%s",
+                            script: "date -d '90 days ago' +%s 2>/dev/null || date -v-90d +%s",
                             returnStdout: true
                         ).trim()
                         if (!threeMonthsAgoStr.isLong()) {
@@ -91,7 +92,7 @@ pipeline {
                             if (branch.startsWith('pr/')) continue
                             def commitEpochStr = withEnv(["BRANCH_TO_CHECK=${branch}"]) {
                                 sh(
-                                    script: "git -C '${tmpBareClone}' log -1 --format='%ct' -- \"\$BRANCH_TO_CHECK\"",
+                                    script: "git -C '${tmpBareClone}' log -1 --format='%ct' \"refs/heads/\$BRANCH_TO_CHECK\"",
                                     returnStdout: true
                                 ).trim()
                             }
