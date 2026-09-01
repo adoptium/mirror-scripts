@@ -1,0 +1,1379 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Adoptium <adoptium-mirrors@eclipse.org>
+Date: Mon, 17 Sep 2001 00:00:00 +0000
+Subject: [PATCH] Add Alpine/musl libc support
+
+Squashed patch of all Alpine musl libc support changes.
+---
+diff --git a/common/autoconf/build-aux/config.guess b/common/autoconf/build-aux/config.guess
+index b32ca48dd5..5203fcdb29 100644
+--- a/common/autoconf/build-aux/config.guess
++++ b/common/autoconf/build-aux/config.guess
+@@ -30,6 +30,17 @@
+ DIR=`dirname $0`
+ OUT=`. $DIR/autoconf-config.guess`
+ 
++# Detect C library.
++# Use '-gnu'  suffix on systems that use glibc.
++# Use '-musl' suffix on systems that use the musl libc.
++echo $OUT | grep -- -linux- > /dev/null 2> /dev/null
++if test $? = 0; then
++  ldd_version=`ldd --version 2>&1 | head -1 | cut -f1 -d' '`
++  if [ x"${ldd_version}" = x"musl" ]; then
++    OUT=`echo $OUT | sed 's/-gnu/-musl/'`
++  fi
++fi
++
+ # Test and fix solaris on x86_64
+ echo $OUT | grep i386-pc-solaris > /dev/null 2> /dev/null
+ if test $? = 0; then
+diff --git a/common/autoconf/build-aux/config.sub b/common/autoconf/build-aux/config.sub
+index cc958da946..a665b00fcc 100644
+--- a/common/autoconf/build-aux/config.sub
++++ b/common/autoconf/build-aux/config.sub
+@@ -29,6 +29,11 @@
+ 
+ DIR=`dirname $0`
+ 
++if echo $* | grep linux-musl >/dev/null ; then
++    echo $*
++    exit
++fi
++
+ # First, filter out everything that doesn't begin with "aarch64-"
+ if ! echo $* | grep '^aarch64-' >/dev/null ; then
+     . $DIR/autoconf-config.sub "$@"
+diff --git a/common/autoconf/flags.m4 b/common/autoconf/flags.m4
+index 5d1ef8732f..006067fa73 100644
+--- a/common/autoconf/flags.m4
++++ b/common/autoconf/flags.m4
+@@ -450,15 +450,21 @@ AC_DEFUN_ONCE([FLAGS_SETUP_COMPILER_FLAGS_FOR_JDK],
+   AC_ARG_WITH(extra-asflags, [AS_HELP_STRING([--with-extra-asflags],
+       [extra flags to be passed to the assembler])])
+ 
+-  CFLAGS_JDK="${CFLAGS_JDK} $with_extra_cflags"
+-  CXXFLAGS_JDK="${CXXFLAGS_JDK} $with_extra_cxxflags"
++  # Define MUSL_LIBC
++  DEFINE_LIBC=""
++  if test "x$OPENJDK_TARGET_LIBC" = xmusl; then
++    DEFINE_LIBC="-DMUSL_LIBC"
++  fi
++
++  CFLAGS_JDK="${CFLAGS_JDK} $with_extra_cflags ${DEFINE_LIBC}"
++  CXXFLAGS_JDK="${CXXFLAGS_JDK} $with_extra_cxxflags ${DEFINE_LIBC}"
+   LDFLAGS_JDK="${LDFLAGS_JDK} $with_extra_ldflags"
+ 
+   # Hotspot needs these set in their legacy form
+-  LEGACY_HOST_CFLAGS="$LEGACY_HOST_CFLAGS $with_extra_cflags"
+-  LEGACY_TARGET_CFLAGS="$LEGACY_TARGET_CFLAGS $with_extra_cflags"
+-  LEGACY_HOST_CXXFLAGS="$LEGACY_HOST_CXXFLAGS $with_extra_cxxflags"
+-  LEGACY_TARGET_CXXFLAGS="$LEGACY_TARGET_CXXFLAGS $with_extra_cxxflags"
++  LEGACY_HOST_CFLAGS="$LEGACY_HOST_CFLAGS $with_extra_cflags ${DEFINE_LIBC}"
++  LEGACY_TARGET_CFLAGS="$LEGACY_TARGET_CFLAGS $with_extra_cflags ${DEFINE_LIBC}"
++  LEGACY_HOST_CXXFLAGS="$LEGACY_HOST_CXXFLAGS $with_extra_cxxflags ${DEFINE_LIBC}"
++  LEGACY_TARGET_CXXFLAGS="$LEGACY_TARGET_CXXFLAGS $with_extra_cxxflags ${DEFINE_LIBC}"
+   LEGACY_HOST_LDFLAGS="$LEGACY_HOST_LDFLAGS $with_extra_ldflags"
+   LEGACY_TARGET_LDFLAGS="$LEGACY_TARGET_LDFLAGS $with_extra_ldflags"
+   LEGACY_HOST_ASFLAGS="$with_extra_asflags"
+diff --git a/common/autoconf/jdk-options.m4 b/common/autoconf/jdk-options.m4
+index 18ba585209..e46cb823ef 100644
+--- a/common/autoconf/jdk-options.m4
++++ b/common/autoconf/jdk-options.m4
+@@ -152,6 +152,9 @@ AC_DEFUN_ONCE([JDKOPT_SETUP_JVM_VARIANTS],
+   AC_SUBST(JVM_VARIANT_CORE)
+ 
+   INCLUDE_SA=true
++  if test "x$OPENJDK_TARGET_LIBC" = xmusl; then
++    INCLUDE_SA=false
++  fi
+   if test "x$JVM_VARIANT_ZERO" = xtrue ; then
+     INCLUDE_SA=false
+   fi
+@@ -539,6 +542,18 @@ AC_DEFUN_ONCE([JDKOPT_SETUP_JDK_VERSION_NUMBERS],
+   AC_SUBST(MACOSX_BUNDLE_NAME_BASE)
+   AC_SUBST(MACOSX_BUNDLE_ID_BASE)
+ 
++  # The company name, if any
++  AC_ARG_WITH(company-name, [AS_HELP_STRING([--with-company-name],
++      [Set company name.])])
++  if test "x$with_company_name" = xyes; then
++    AC_MSG_ERROR([--with-company-name must have a value])
++  elif [ ! [[ $with_company_name =~ ^[[:print:]]*$ ]] ]; then
++    AC_MSG_ERROR([--with-company-name contains non-printing characters: $with_company_name])
++  elif test "x$with_company_name" != x; then
++    COMPANY_NAME="$with_company_name"
++  fi
++  AC_SUBST(COMPANY_NAME)
++
+   # The vendor name, if any
+   AC_ARG_WITH(vendor-name, [AS_HELP_STRING([--with-vendor-name],
+       [Set vendor name. Among others, used to set the 'java.vendor'
+diff --git a/common/autoconf/platform.m4 b/common/autoconf/platform.m4
+index 99c7820224..f83d920e69 100644
+--- a/common/autoconf/platform.m4
++++ b/common/autoconf/platform.m4
+@@ -161,6 +161,24 @@ AC_DEFUN([PLATFORM_EXTRACT_VARS_FROM_OS],
+   esac
+ ])
+ 
++# Support macro for PLATFORM_EXTRACT_TARGET_AND_BUILD.
++# Converts autoconf style OS name to OpenJDK style, into
++# VAR_LIBC.
++AC_DEFUN([PLATFORM_EXTRACT_VARS_FROM_LIBC],
++[
++  case "$1" in
++    *linux*-musl)
++      VAR_LIBC=musl
++      ;;
++    *linux*-gnu)
++      VAR_LIBC=gnu
++      ;;
++    *)
++      VAR_LIBC=default
++      ;;
++  esac
++])
++
+ # Expects $host_os $host_cpu $build_os and $build_cpu
+ # and $with_target_bits to have been setup!
+ #
+@@ -178,9 +196,10 @@ AC_DEFUN([PLATFORM_EXTRACT_TARGET_AND_BUILD],
+   AC_SUBST(OPENJDK_TARGET_AUTOCONF_NAME)
+   AC_SUBST(OPENJDK_BUILD_AUTOCONF_NAME)
+ 
+-  # Convert the autoconf OS/CPU value to our own data, into the VAR_OS/CPU variables.
++  # Convert the autoconf OS/CPU value to our own data, into the VAR_OS/CPU/LIBC variables.
+   PLATFORM_EXTRACT_VARS_FROM_OS($build_os)
+   PLATFORM_EXTRACT_VARS_FROM_CPU($build_cpu)
++  PLATFORM_EXTRACT_VARS_FROM_LIBC($build_os)
+   # ..and setup our own variables. (Do this explicitely to facilitate searching)
+   OPENJDK_BUILD_OS="$VAR_OS"
+   OPENJDK_BUILD_OS_API="$VAR_OS_API"
+@@ -189,6 +208,7 @@ AC_DEFUN([PLATFORM_EXTRACT_TARGET_AND_BUILD],
+   OPENJDK_BUILD_CPU_ARCH="$VAR_CPU_ARCH"
+   OPENJDK_BUILD_CPU_BITS="$VAR_CPU_BITS"
+   OPENJDK_BUILD_CPU_ENDIAN="$VAR_CPU_ENDIAN"
++  OPENJDK_BUILD_LIBC="$VAR_LIBC"
+   AC_SUBST(OPENJDK_BUILD_OS)
+   AC_SUBST(OPENJDK_BUILD_OS_API)
+   AC_SUBST(OPENJDK_BUILD_OS_ENV)
+@@ -196,13 +216,20 @@ AC_DEFUN([PLATFORM_EXTRACT_TARGET_AND_BUILD],
+   AC_SUBST(OPENJDK_BUILD_CPU_ARCH)
+   AC_SUBST(OPENJDK_BUILD_CPU_BITS)
+   AC_SUBST(OPENJDK_BUILD_CPU_ENDIAN)
++  AC_SUBST(OPENJDK_BUILD_LIBC)
+ 
+   AC_MSG_CHECKING([openjdk-build os-cpu])
+   AC_MSG_RESULT([$OPENJDK_BUILD_OS-$OPENJDK_BUILD_CPU])
+ 
+-  # Convert the autoconf OS/CPU value to our own data, into the VAR_OS/CPU variables.
++  if test "x$OPENJDK_BUILD_OS" = "xlinux"; then
++    AC_MSG_CHECKING([openjdk-build C library])
++    AC_MSG_RESULT([$OPENJDK_BUILD_LIBC])
++  fi
++
++  # Convert the autoconf OS/CPU value to our own data, into the VAR_OS/CPU/LIBC variables.
+   PLATFORM_EXTRACT_VARS_FROM_OS($host_os)
+   PLATFORM_EXTRACT_VARS_FROM_CPU($host_cpu)
++  PLATFORM_EXTRACT_VARS_FROM_LIBC($host_os)
+   # ... and setup our own variables. (Do this explicitely to facilitate searching)
+   OPENJDK_TARGET_OS="$VAR_OS"
+   OPENJDK_TARGET_OS_API="$VAR_OS_API"
+@@ -211,6 +238,7 @@ AC_DEFUN([PLATFORM_EXTRACT_TARGET_AND_BUILD],
+   OPENJDK_TARGET_CPU_ARCH="$VAR_CPU_ARCH"
+   OPENJDK_TARGET_CPU_BITS="$VAR_CPU_BITS"
+   OPENJDK_TARGET_CPU_ENDIAN="$VAR_CPU_ENDIAN"
++  OPENJDK_TARGET_LIBC="$VAR_LIBC"
+   AC_SUBST(OPENJDK_TARGET_OS)
+   AC_SUBST(OPENJDK_TARGET_OS_API)
+   AC_SUBST(OPENJDK_TARGET_OS_ENV)
+@@ -218,9 +246,15 @@ AC_DEFUN([PLATFORM_EXTRACT_TARGET_AND_BUILD],
+   AC_SUBST(OPENJDK_TARGET_CPU_ARCH)
+   AC_SUBST(OPENJDK_TARGET_CPU_BITS)
+   AC_SUBST(OPENJDK_TARGET_CPU_ENDIAN)
++  AC_SUBST(OPENJDK_TARGET_LIBC)
+ 
+   AC_MSG_CHECKING([openjdk-target os-cpu])
+   AC_MSG_RESULT([$OPENJDK_TARGET_OS-$OPENJDK_TARGET_CPU])
++
++  if test "x$OPENJDK_TARGET_OS" = "xlinux"; then
++    AC_MSG_CHECKING([openjdk-target C library])
++    AC_MSG_RESULT([$OPENJDK_TARGET_LIBC])
++  fi
+ ])
+ 
+ # Check if a reduced build (32-bit on 64-bit platforms) is requested, and modify behaviour
+diff --git a/common/autoconf/spec.gmk.in b/common/autoconf/spec.gmk.in
+index ea4ec8e125..a1eacaeb5a 100644
+--- a/common/autoconf/spec.gmk.in
++++ b/common/autoconf/spec.gmk.in
+@@ -85,6 +85,8 @@ OPENJDK_TARGET_CPU_ARCH:=@OPENJDK_TARGET_CPU_ARCH@
+ OPENJDK_TARGET_CPU_BITS:=@OPENJDK_TARGET_CPU_BITS@
+ OPENJDK_TARGET_CPU_ENDIAN:=@OPENJDK_TARGET_CPU_ENDIAN@
+ 
++OPENJDK_TARGET_LIBC:=@OPENJDK_TARGET_LIBC@
++
+ COMPILE_TYPE:=@COMPILE_TYPE@
+ 
+ # Legacy support
+@@ -108,6 +110,8 @@ OPENJDK_BUILD_CPU_ARCH:=@OPENJDK_BUILD_CPU_ARCH@
+ OPENJDK_BUILD_CPU_BITS:=@OPENJDK_BUILD_CPU_BITS@
+ OPENJDK_BUILD_CPU_ENDIAN:=@OPENJDK_BUILD_CPU_ENDIAN@
+ 
++OPENJDK_BUILD_LIBC:=@OPENJDK_BUILD_LIBC@
++
+ # Legacy OS values for use in release file.
+ REQUIRED_OS_NAME:=@REQUIRED_OS_NAME@
+ REQUIRED_OS_VERSION:=@REQUIRED_OS_VERSION@
+diff --git a/hotspot/make/linux/makefiles/defs.make b/hotspot/make/linux/makefiles/defs.make
+index ec414639d2..5d05825300 100644
+--- a/hotspot/make/linux/makefiles/defs.make
++++ b/hotspot/make/linux/makefiles/defs.make
+@@ -305,6 +305,9 @@ endif
+ 
+ # Serviceability Binaries
+ # No SA Support for PPC, IA64, ARM or zero
++# or if thread_db.h missing (musl)
++
++ifneq ($(wildcard /usr/include/thread_db.h),)
+ ADD_SA_BINARIES/x86   = $(EXPORT_JRE_LIB_ARCH_DIR)/libsaproc.$(LIBRARY_SUFFIX) \
+                         $(EXPORT_LIB_DIR)/sa-jdi.jar
+ ADD_SA_BINARIES/sparc = $(EXPORT_JRE_LIB_ARCH_DIR)/libsaproc.$(LIBRARY_SUFFIX) \
+@@ -324,6 +327,11 @@ ifeq ($(ENABLE_FULL_DEBUG_SYMBOLS),1)
+     endif
+   endif
+ endif
++else
++ADD_SA_BINARIES/x86     =
++ADD_SA_BINARIES/sparc   =
++ADD_SA_BINARIES/aarch64 =
++endif
+ ADD_SA_BINARIES/ppc   =
+ ADD_SA_BINARIES/ia64  =
+ ADD_SA_BINARIES/arm   =
+diff --git a/hotspot/make/linux/makefiles/sa.make b/hotspot/make/linux/makefiles/sa.make
+index cdcb16a1a3..8d2f31e7cb 100644
+--- a/hotspot/make/linux/makefiles/sa.make
++++ b/hotspot/make/linux/makefiles/sa.make
+@@ -59,9 +59,11 @@ SA_PROPERTIES = $(SA_CLASSDIR)/sa.properties
+ 
+ # if $(AGENT_DIR) does not exist, we don't build SA
+ # also, we don't build SA on Itanium or zero.
++# check for thread_db.h too (musl does not have it).
+ 
+ all: 
+-	if [ -d $(AGENT_DIR) -a "$(SRCARCH)" != "ia64" \
++	if [ -d $(AGENT_DIR) -a -f /usr/include/thread_db.h \
++             -a "$(SRCARCH)" != "ia64" \
+              -a "$(SRCARCH)" != "zero" ] ; then \
+ 	   $(MAKE) -f sa.make $(GENERATED)/sa-jdi.jar; \
+ 	fi
+diff --git a/hotspot/make/linux/makefiles/saproc.make b/hotspot/make/linux/makefiles/saproc.make
+index ffc0ec5ce5..732c7614d6 100644
+--- a/hotspot/make/linux/makefiles/saproc.make
++++ b/hotspot/make/linux/makefiles/saproc.make
+@@ -66,12 +66,15 @@ endif
+ 
+ # if $(AGENT_DIR) does not exist, we don't build SA
+ # also, we don't build SA on Itanium or zero.
++# check for thread_db.h too (musl does not have it).
+ 
++ifneq ($(wildcard /usr/include/thread_db.h),)
+ ifneq ($(wildcard $(AGENT_DIR)),)
+ ifneq ($(filter-out ia64 zero,$(SRCARCH)),)
+   BUILDLIBSAPROC = $(LIBSAPROC)
+ endif
+ endif
++endif
+ 
+ ifneq ($(ALT_SASRCDIR),)
+ ALT_SAINCDIR=-I$(ALT_SASRCDIR) -DALT_SASRCDIR
+diff --git a/hotspot/src/cpu/ppc/vm/macroAssembler_ppc.cpp b/hotspot/src/cpu/ppc/vm/macroAssembler_ppc.cpp
+index f661847b66..d40548f680 100644
+--- a/hotspot/src/cpu/ppc/vm/macroAssembler_ppc.cpp
++++ b/hotspot/src/cpu/ppc/vm/macroAssembler_ppc.cpp
+@@ -1243,7 +1243,11 @@ bool MacroAssembler::is_load_from_polling_page(int instruction, void* ucontext,
+   // the safepoing polling page.
+   ucontext_t* uc = (ucontext_t*) ucontext;
+   // Set polling address.
++#ifndef MUSL_LIBC
+   address addr = (address)uc->uc_mcontext.regs->gpr[ra] + (ssize_t)ds;
++#else
++  address addr = (address)uc->uc_mcontext.gp_regs[ra] + (ssize_t)ds;
++#endif
+   if (polling_address_ptr != NULL) {
+     *polling_address_ptr = addr;
+   }
+@@ -1264,15 +1268,24 @@ bool MacroAssembler::is_memory_serialization(int instruction, JavaThread* thread
+     int rb = inv_rb_field(instruction);
+ 
+     // look up content of ra and rb in ucontext
++#ifndef MUSL_LIBC
+     address ra_val=(address)uc->uc_mcontext.regs->gpr[ra];
+     long rb_val=(long)uc->uc_mcontext.regs->gpr[rb];
++#else
++    address ra_val=(address)uc->uc_mcontext.gp_regs[ra];
++    long rb_val=(long)uc->uc_mcontext.gp_regs[rb];
++#endif
+     return os::is_memory_serialize_page(thread, ra_val+rb_val);
+   } else if (is_stw(instruction) || is_stwu(instruction)) {
+     int ra = inv_ra_field(instruction);
+     int d1 = inv_d1_field(instruction);
+ 
+     // look up content of ra in ucontext
++#ifndef MUSL_LIBC
+     address ra_val=(address)uc->uc_mcontext.regs->gpr[ra];
++#else
++    address ra_val=(address)uc->uc_mcontext.gp_regs[ra];
++#endif
+     return os::is_memory_serialize_page(thread, ra_val+d1);
+   } else {
+     return false;
+@@ -1335,11 +1348,20 @@ address MacroAssembler::get_stack_bang_address(int instruction, void *ucontext)
+       || (is_stdu(instruction) && rs == 1)) {
+     int ds = inv_ds_field(instruction);
+     // return banged address
++#ifndef MUSL_LIBC
+     return ds+(address)uc->uc_mcontext.regs->gpr[ra];
++#else
++    return ds+(address)uc->uc_mcontext.gp_regs[ra];
++#endif
+   } else if (is_stdux(instruction) && rs == 1) {
+     int rb = inv_rb_field(instruction);
++#ifndef MUSL_LIBC
+     address sp = (address)uc->uc_mcontext.regs->gpr[1];
+     long rb_val = (long)uc->uc_mcontext.regs->gpr[rb];
++#else
++    address sp = (address)uc->uc_mcontext.gp_regs[1];
++    long rb_val = (long)uc->uc_mcontext.gp_regs[rb];
++#endif
+     return ra != 1 || rb_val >= 0 ? NULL         // not a stack bang
+                                   : sp + rb_val; // banged address
+   }
+diff --git a/hotspot/src/os/linux/vm/jvm_linux.cpp b/hotspot/src/os/linux/vm/jvm_linux.cpp
+index ba84788a1b..c22281f7ca 100644
+--- a/hotspot/src/os/linux/vm/jvm_linux.cpp
++++ b/hotspot/src/os/linux/vm/jvm_linux.cpp
+@@ -154,7 +154,9 @@ struct siglabel siglabels[] = {
+ #ifdef SIGSTKFLT
+   "STKFLT",     SIGSTKFLT,      /* Stack fault.  */
+ #endif
++#ifdef SIGCLD
+   "CLD",        SIGCLD,         /* Same as SIGCHLD (System V).  */
++#endif
+   "CHLD",       SIGCHLD,        /* Child status has changed (POSIX).  */
+   "CONT",       SIGCONT,        /* Continue (POSIX).  */
+   "STOP",       SIGSTOP,        /* Stop, unblockable (POSIX).  */
+diff --git a/hotspot/src/os/linux/vm/os_linux.cpp b/hotspot/src/os/linux/vm/os_linux.cpp
+index 742e17d115..d9a9877970 100644
+--- a/hotspot/src/os/linux/vm/os_linux.cpp
++++ b/hotspot/src/os/linux/vm/os_linux.cpp
+@@ -96,7 +96,6 @@
+ # include <string.h>
+ # include <syscall.h>
+ # include <sys/sysinfo.h>
+-# include <gnu/libc-version.h>
+ # include <sys/ipc.h>
+ # include <sys/shm.h>
+ # include <link.h>
+@@ -104,6 +103,10 @@
+ # include <inttypes.h>
+ # include <sys/ioctl.h>
+ 
++#ifndef MUSL_LIBC
++#include <gnu/libc-version.h>
++#endif
++
+ PRAGMA_FORMAT_MUTE_WARNINGS_FOR_GCC
+ 
+ #ifndef _GNU_SOURCE
+@@ -145,7 +148,7 @@ const int os::Linux::_vm_default_page_size = (8 * K);
+ bool os::Linux::_is_floating_stack = false;
+ bool os::Linux::_is_NPTL = false;
+ bool os::Linux::_supports_fast_thread_cpu_time = false;
+-const char * os::Linux::_glibc_version = NULL;
++const char * os::Linux::_libc_version = NULL;
+ const char * os::Linux::_libpthread_version = NULL;
+ pthread_condattr_t os::Linux::_condattr[1];
+ 
+@@ -585,6 +588,15 @@ void os::Linux::hotspot_sigmask(Thread* thread) {
+ // detecting pthread library
+ 
+ void os::Linux::libpthread_init() {
++#ifdef MUSL_LIBC
++  // Hard code Alpine Linux supported musl compatible settings.
++  // confstr() from musl libc returns EINVAL for
++  // _CS_GNU_LIBC_VERSION and _CS_GNU_LIBPTHREAD_VERSION
++  os::Linux::set_libc_version("musl - unknown");
++  os::Linux::set_libpthread_version("musl - unknown");
++  os::Linux::set_is_NPTL();
++  os::Linux::set_is_floating_stack();
++#else
+   // Save glibc and pthread version strings. Note that _CS_GNU_LIBC_VERSION
+   // and _CS_GNU_LIBPTHREAD_VERSION are supported in glibc >= 2.3.2. Use a
+   // generic name for earlier versions.
+@@ -600,13 +612,13 @@ void os::Linux::libpthread_init() {
+   if (n > 0) {
+      char *str = (char *)malloc(n, mtInternal);
+      confstr(_CS_GNU_LIBC_VERSION, str, n);
+-     os::Linux::set_glibc_version(str);
++     os::Linux::set_libc_version(str);
+   } else {
+      // _CS_GNU_LIBC_VERSION is not supported, try gnu_get_libc_version()
+      static char _gnu_libc_version[32];
+      jio_snprintf(_gnu_libc_version, sizeof(_gnu_libc_version),
+               "glibc %s %s", gnu_get_libc_version(), gnu_get_libc_release());
+-     os::Linux::set_glibc_version(_gnu_libc_version);
++     os::Linux::set_libc_version(_gnu_libc_version);
+   }
+ 
+   n = confstr(_CS_GNU_LIBPTHREAD_VERSION, NULL, 0);
+@@ -619,7 +631,7 @@ void os::Linux::libpthread_init() {
+      // So sysconf(_SC_THREAD_THREADS_MAX) will return a positive value.
+      // On the other hand, NPTL does not have such a limit, sysconf()
+      // will return -1 and errno is not changed. Check if it is really NPTL.
+-     if (strcmp(os::Linux::glibc_version(), "glibc 2.3.2") == 0 &&
++     if (strcmp(os::Linux::libc_version(), "glibc 2.3.2") == 0 &&
+          strstr(str, "NPTL") &&
+          sysconf(_SC_THREAD_THREADS_MAX) > 0) {
+        free(str);
+@@ -643,6 +655,7 @@ void os::Linux::libpthread_init() {
+   if (os::Linux::is_NPTL() || os::Linux::supports_variable_stack_size()) {
+      os::Linux::set_is_floating_stack();
+   }
++#endif
+ }
+ 
+ /////////////////////////////////////////////////////////////////////////////
+@@ -800,7 +813,7 @@ static void *java_start(Thread *thread) {
+   // processors with hyperthreading technology.
+   static int counter = 0;
+   int pid = os::current_process_id();
+-  alloca(((pid ^ counter++) & 7) * 128);
++  void *tmp = alloca(((pid ^ counter++) & 7) * 128);
+ 
+   ThreadLocalStorage::set_thread(thread);
+ 
+@@ -2295,7 +2308,7 @@ void os::Linux::print_distro_info(outputStream* st) {
+ void os::Linux::print_libversion_info(outputStream* st) {
+   // libc, pthread
+   st->print("libc:");
+-  st->print("%s ", os::Linux::glibc_version());
++  st->print("%s ", os::Linux::libc_version());
+   st->print("%s ", os::Linux::libpthread_version());
+   if (os::Linux::is_LinuxThreads()) {
+      st->print("(%s stack)", os::Linux::is_floating_stack() ? "floating" : "fixed");
+@@ -3012,6 +3025,14 @@ extern "C" JNIEXPORT void numa_warn(int number, char *where, ...) { }
+ extern "C" JNIEXPORT void numa_error(char *where) { }
+ extern "C" JNIEXPORT int fork1() { return fork(); }
+ 
++#ifdef MUSL_LIBC
++  // dlvsym is not a part of POSIX and musl libc doesn't implement it.
++  static void *dlvsym(void *handle, const char *name, const char *ver)
++  {
++    return dlsym(handle, name);
++  }
++#endif
++
+ // Handle request to load libnuma symbol version 1.1 (API v1). If it fails
+ // load symbol from base version instead.
+ void* os::Linux::libnuma_dlsym(void* handle, const char *name) {
+@@ -5037,7 +5058,8 @@ void os::Linux::check_signal_handler(int sig) {
+   }
+ 
+   if (thisHandler != jvmHandler) {
+-    tty->print("Warning: %s handler ", exception_name(sig, buf, O_BUFLEN));
++    if(exception_name(sig, buf, O_BUFLEN))
++      tty->print("Warning: %s handler ", exception_name(sig, buf, O_BUFLEN));
+     tty->print("expected:%s", get_signal_handler_name(jvmHandler, buf, O_BUFLEN));
+     tty->print_cr("  found:%s", get_signal_handler_name(thisHandler, buf, O_BUFLEN));
+     // No need to check this sig any longer
+@@ -5227,7 +5249,7 @@ jint os::init_2(void)
+   Linux::libpthread_init();
+   if (PrintMiscellaneous && (Verbose || WizardMode)) {
+      tty->print_cr("[HotSpot is running with %s, %s(%s)]\n",
+-          Linux::glibc_version(), Linux::libpthread_version(),
++          Linux::libc_version(), Linux::libpthread_version(),
+           Linux::is_floating_stack() ? "floating stack" : "fixed stack");
+   }
+ 
+diff --git a/hotspot/src/os/linux/vm/os_linux.hpp b/hotspot/src/os/linux/vm/os_linux.hpp
+index ed15777877..f47c2cb731 100644
+--- a/hotspot/src/os/linux/vm/os_linux.hpp
++++ b/hotspot/src/os/linux/vm/os_linux.hpp
+@@ -62,7 +62,7 @@ class Linux {
+   static address   _initial_thread_stack_bottom;
+   static uintptr_t _initial_thread_stack_size;
+ 
+-  static const char *_glibc_version;
++  static const char *_libc_version;
+   static const char *_libpthread_version;
+ 
+   static bool _is_floating_stack;
+@@ -89,7 +89,7 @@ class Linux {
+   static int commit_memory_impl(char* addr, size_t bytes,
+                                 size_t alignment_hint, bool exec);
+ 
+-  static void set_glibc_version(const char *s)      { _glibc_version = s; }
++  static void set_libc_version(const char *s)       { _libc_version = s; }
+   static void set_libpthread_version(const char *s) { _libpthread_version = s; }
+ 
+   static bool supports_variable_stack_size();
+@@ -183,7 +183,7 @@ class Linux {
+   static bool chained_handler(int sig, siginfo_t* siginfo, void* context);
+ 
+   // GNU libc and libpthread version strings
+-  static const char *glibc_version()          { return _glibc_version; }
++  static const char *libc_version()           { return _libc_version; }
+   static const char *libpthread_version()     { return _libpthread_version; }
+ 
+   // NPTL or LinuxThreads?
+diff --git a/hotspot/src/os/linux/vm/os_linux.inline.hpp b/hotspot/src/os/linux/vm/os_linux.inline.hpp
+index a23bd56313..80b977711e 100644
+--- a/hotspot/src/os/linux/vm/os_linux.inline.hpp
++++ b/hotspot/src/os/linux/vm/os_linux.inline.hpp
+@@ -33,9 +33,14 @@
+ 
+ #include <unistd.h>
+ #include <sys/socket.h>
+-#include <sys/poll.h>
+ #include <netdb.h>
+ 
++#ifndef MUSL_LIBC
++#include <sys/poll.h>
++#else
++#include <poll.h>
++#endif
++
+ inline void* os::thread_local_storage_at(int index) {
+   return pthread_getspecific((pthread_key_t)index);
+ }
+diff --git a/hotspot/src/os_cpu/linux_aarch64/vm/os_linux_aarch64.cpp b/hotspot/src/os_cpu/linux_aarch64/vm/os_linux_aarch64.cpp
+index db1cb10499..5623377727 100644
+--- a/hotspot/src/os_cpu/linux_aarch64/vm/os_linux_aarch64.cpp
++++ b/hotspot/src/os_cpu/linux_aarch64/vm/os_linux_aarch64.cpp
+@@ -72,7 +72,12 @@
+ # include <pwd.h>
+ # include <poll.h>
+ # include <ucontext.h>
+-# include <fpu_control.h>
++
++#ifndef MUSL_LIBC
++#include <fpu_control.h>
++#else
++#include <linux/types.h>  /* provides __u64 */
++#endif
+ 
+ #define REG_FP 29
+ 
+diff --git a/hotspot/src/os_cpu/linux_ppc/vm/os_linux_ppc.cpp b/hotspot/src/os_cpu/linux_ppc/vm/os_linux_ppc.cpp
+index ffee3b5089..17c1aec161 100644
+--- a/hotspot/src/os_cpu/linux_ppc/vm/os_linux_ppc.cpp
++++ b/hotspot/src/os_cpu/linux_ppc/vm/os_linux_ppc.cpp
+@@ -75,6 +75,9 @@
+ # include <poll.h>
+ # include <ucontext.h>
+ 
++#ifdef MUSL_LIBC
++#include <asm/ptrace.h>
++#endif
+ 
+ address os::current_stack_pointer() {
+   intptr_t* csp;
+@@ -110,11 +113,19 @@ address os::Linux::ucontext_get_pc(ucontext_t * uc) {
+   //   it because the volatile registers are not needed to make setcontext() work.
+   //   Hopefully it was zero'd out beforehand.
+   guarantee(uc->uc_mcontext.regs != NULL, "only use ucontext_get_pc in sigaction context");
++#ifndef MUSL_LIBC
+   return (address)uc->uc_mcontext.regs->nip;
++#else
++  return (address)uc->uc_mcontext.gp_regs[PT_NIP];
++#endif
+ }
+ 
+ intptr_t* os::Linux::ucontext_get_sp(ucontext_t * uc) {
++#ifndef MUSL_LIBC
+   return (intptr_t*)uc->uc_mcontext.regs->gpr[1/*REG_SP*/];
++#else
++  return (intptr_t*)uc->uc_mcontext.gp_regs[1/*REG_SP*/];
++#endif
+ }
+ 
+ intptr_t* os::Linux::ucontext_get_fp(ucontext_t * uc) {
+@@ -217,7 +228,11 @@ JVM_handle_linux_signal(int sig,
+   if ((sig == SIGSEGV || sig == SIGBUS) && uc) {
+     address const pc = os::Linux::ucontext_get_pc(uc);
+     if (pc && StubRoutines::is_safefetch_fault(pc)) {
++#ifndef MUSL_LIBC
+       uc->uc_mcontext.regs->nip = (unsigned long)StubRoutines::continuation_for_safefetch_fault(pc);
++#else
++      uc->uc_mcontext.gp_regs[PT_NIP] = (unsigned long)StubRoutines::continuation_for_safefetch_fault(pc);
++#endif
+       return true;
+     }
+   }
+@@ -368,7 +383,11 @@ JVM_handle_linux_signal(int sig,
+           // continue at the next instruction after the faulting read. Returning
+           // garbage from this read is ok.
+           thread->set_pending_unsafe_access_error();
++#ifndef MUSL_LIBC
+           uc->uc_mcontext.regs->nip = ((unsigned long)pc) + 4;
++#else
++          uc->uc_mcontext.gp_regs[PT_NIP] = ((unsigned long)pc) + 4;
++#endif
+           return true;
+         }
+       }
+@@ -387,7 +406,11 @@ JVM_handle_linux_signal(int sig,
+         // continue at the next instruction after the faulting read. Returning
+         // garbage from this read is ok.
+         thread->set_pending_unsafe_access_error();
++#ifndef MUSL_LIBC
+         uc->uc_mcontext.regs->nip = ((unsigned long)pc) + 4;
++#else
++        uc->uc_mcontext.gp_regs[PT_NIP] = ((unsigned long)pc) + 4;
++#endif
+         return true;
+       }
+     }
+@@ -410,7 +433,11 @@ JVM_handle_linux_signal(int sig,
+   if (stub != NULL) {
+     // Save all thread context in case we need to restore it.
+     if (thread != NULL) thread->set_saved_exception_pc(pc);
++#ifndef MUSL_LIBC
+     uc->uc_mcontext.regs->nip = (unsigned long)stub;
++#else
++    uc->uc_mcontext.gp_regs[PT_NIP] = (unsigned long)stub;
++#endif
+     return true;
+   }
+ 
+@@ -568,6 +595,7 @@ void os::print_context(outputStream *st, void *context) {
+   ucontext_t* uc = (ucontext_t*)context;
+ 
+   st->print_cr("Registers:");
++#ifndef MUSL_LIBC
+   st->print("pc =" INTPTR_FORMAT "  ", uc->uc_mcontext.regs->nip);
+   st->print("lr =" INTPTR_FORMAT "  ", uc->uc_mcontext.regs->link);
+   st->print("ctr=" INTPTR_FORMAT "  ", uc->uc_mcontext.regs->ctr);
+@@ -576,6 +604,16 @@ void os::print_context(outputStream *st, void *context) {
+     st->print("r%-2d=" INTPTR_FORMAT "  ", i, uc->uc_mcontext.regs->gpr[i]);
+     if (i % 3 == 2) st->cr();
+   }
++#else // Musl
++  st->print("pc =" INTPTR_FORMAT "  ", uc->uc_mcontext.gp_regs[PT_NIP]);
++  st->print("lr =" INTPTR_FORMAT "  ", uc->uc_mcontext.gp_regs[PT_LNK]);
++  st->print("ctr=" INTPTR_FORMAT "  ", uc->uc_mcontext.gp_regs[PT_CTR]);
++  st->cr();
++  for (int i = 0; i < 32; i++) {
++    st->print("r%-2d=" INTPTR_FORMAT "  ", i, uc->uc_mcontext.gp_regs[i]);
++    if (i % 3 == 2) st->cr();
++  }
++#endif
+   st->cr();
+   st->cr();
+ 
+@@ -604,7 +642,11 @@ void os::print_register_info(outputStream *st, void *context) {
+   // this is only for the "general purpose" registers
+   for (int i = 0; i < 32; i++) {
+     st->print("r%-2d=", i);
++#ifndef MUSL_LIBC
+     print_location(st, uc->uc_mcontext.regs->gpr[i]);
++#else
++    print_location(st, uc->uc_mcontext.gp_regs[i]);
++#endif
+   }
+   st->cr();
+ }
+diff --git a/hotspot/src/os_cpu/linux_ppc/vm/thread_linux_ppc.cpp b/hotspot/src/os_cpu/linux_ppc/vm/thread_linux_ppc.cpp
+index 802677f470..dd68a34549 100644
+--- a/hotspot/src/os_cpu/linux_ppc/vm/thread_linux_ppc.cpp
++++ b/hotspot/src/os_cpu/linux_ppc/vm/thread_linux_ppc.cpp
+@@ -27,6 +27,10 @@
+ #include "runtime/frame.inline.hpp"
+ #include "runtime/thread.hpp"
+ 
++#ifdef MUSL_LIBC
++#include <asm/ptrace.h>
++#endif
++
+ bool JavaThread::pd_get_top_frame_for_profiling(frame* fr_addr, void* ucontext, bool isInJava) {
+   assert(this->is_Java_thread(), "must be JavaThread");
+ 
+@@ -42,8 +46,13 @@ bool JavaThread::pd_get_top_frame_for_profiling(frame* fr_addr, void* ucontext,
+   // if we were running Java code when SIGPROF came in.
+   if (isInJava) {
+     ucontext_t* uc = (ucontext_t*) ucontext;
++#ifndef MUSL_LIBC
+     frame ret_frame((intptr_t*)uc->uc_mcontext.regs->gpr[1/*REG_SP*/],
+                      (address)uc->uc_mcontext.regs->nip);
++#else
++    frame ret_frame((intptr_t*)uc->uc_mcontext.gp_regs[1/*REG_SP*/],
++                     (address)uc->uc_mcontext.gp_regs[PT_NIP]);
++#endif
+ 
+     if (ret_frame.pc() == NULL) {
+       // ucontext wasn't useful
+@@ -56,7 +65,11 @@ bool JavaThread::pd_get_top_frame_for_profiling(frame* fr_addr, void* ucontext,
+       if (m == NULL || !m->is_valid_method()) return false;
+       if (!Metaspace::contains((const void*)m)) return false;
+ 
++#ifndef MUSL_LIBC
+       uint64_t reg_bcp = uc->uc_mcontext.regs->gpr[14/*R14_bcp*/];
++#else
++      uint64_t reg_bcp = uc->uc_mcontext.gp_regs[14/*R14_bcp*/];
++#endif
+       uint64_t istate_bcp = istate->bcp;
+       uint64_t code_start = (uint64_t)(m->code_base());
+       uint64_t code_end = (uint64_t)(m->code_base() + m->code_size());
+diff --git a/hotspot/src/os_cpu/linux_x86/vm/os_linux_x86.cpp b/hotspot/src/os_cpu/linux_x86/vm/os_linux_x86.cpp
+index 12b5ca0acd..b489fc89be 100644
+--- a/hotspot/src/os_cpu/linux_x86/vm/os_linux_x86.cpp
++++ b/hotspot/src/os_cpu/linux_x86/vm/os_linux_x86.cpp
+@@ -72,7 +72,10 @@
+ # include <pwd.h>
+ # include <poll.h>
+ # include <ucontext.h>
+-# include <fpu_control.h>
++
++#ifndef MUSL_LIBC
++#include <fpu_control.h>
++#endif
+ 
+ #ifdef AMD64
+ #define REG_SP REG_RSP
+@@ -544,6 +547,11 @@ JVM_handle_linux_signal(int sig,
+   return true; // Mute compiler
+ }
+ 
++#ifdef MUSL_LIBC
++#define _FPU_GETCW(cw) __asm__ __volatile__ ("fnstcw %0" : "=m" (*&cw))
++#define _FPU_SETCW(cw) __asm__ __volatile__ ("fldcw %0" : : "m" (*&cw))
++#endif
++
+ void os::Linux::init_thread_fpu_state(void) {
+ #ifndef AMD64
+   // set fpu to 53 bit precision
+diff --git a/hotspot/src/os_cpu/linux_x86/vm/threadLS_linux_x86.hpp b/hotspot/src/os_cpu/linux_x86/vm/threadLS_linux_x86.hpp
+index f3f2f26f88..00b472693a 100644
+--- a/hotspot/src/os_cpu/linux_x86/vm/threadLS_linux_x86.hpp
++++ b/hotspot/src/os_cpu/linux_x86/vm/threadLS_linux_x86.hpp
+@@ -32,7 +32,9 @@
+   // map stack pointer to thread pointer - see notes in threadLS_linux_x86.cpp
+   #define SP_BITLENGTH  32
+   #define PAGE_SHIFT    12
++  #if !defined(MUSL_LIBC) || !defined(PAGE_SIZE)
+   #define PAGE_SIZE     (1UL << PAGE_SHIFT)
++  #endif
+   static Thread* _sp_map[1UL << (SP_BITLENGTH - PAGE_SHIFT)];
+ 
+ public:
+diff --git a/jdk/make/gensrc/GensrcMisc.gmk b/jdk/make/gensrc/GensrcMisc.gmk
+index 0e3dee5ca3..fc19b082cc 100644
+--- a/jdk/make/gensrc/GensrcMisc.gmk
++++ b/jdk/make/gensrc/GensrcMisc.gmk
+@@ -30,6 +30,11 @@ include ProfileNames.gmk
+ # string and the runtime name into the Version.java file.
+ # To be printed by java -version
+ 
++company_name =
++ifneq ($(COMPANY_NAME),N/A)
++  company_name=($(COMPANY_NAME))
++endif
++
+ $(JDK_OUTPUTDIR)/gensrc/sun/misc/Version.java \
+ $(PROFILE_VERSION_JAVA_TARGETS): \
+     $(JDK_TOPDIR)/src/share/classes/sun/misc/Version.java.template
+@@ -41,6 +46,7 @@ $(PROFILE_VERSION_JAVA_TARGETS): \
+ 	    -e 's/@@java_runtime_version@@/$(FULL_VERSION)/g' \
+ 	    -e 's/@@java_runtime_name@@/$(RUNTIME_NAME)/g' \
+ 	    -e 's/@@java_profile_name@@/$(call profile_version_name, $@)/g' \
++      -e 's/@@company_name@@/$(company_name)/g' \
+ 	    $< > $@.tmp
+ 	$(MV) $@.tmp $@
+ 
+diff --git a/jdk/src/aix/native/java/net/aix_close.c b/jdk/src/aix/native/java/net/aix_close.c
+index 5bf798aba1..b6696631a0 100644
+--- a/jdk/src/aix/native/java/net/aix_close.c
++++ b/jdk/src/aix/native/java/net/aix_close.c
+@@ -54,7 +54,11 @@
+ #include <unistd.h>
+ #include <errno.h>
+ 
++#ifndef MUSL_LIBC
+ #include <sys/poll.h>
++#else
++#include <poll.h>
++#endif
+ #include "jvm.h"
+ 
+ /*
+diff --git a/jdk/src/aix/native/sun/nio/ch/AixNativeThread.c b/jdk/src/aix/native/sun/nio/ch/AixNativeThread.c
+index c0d5857962..66098cc36d 100644
+--- a/jdk/src/aix/native/sun/nio/ch/AixNativeThread.c
++++ b/jdk/src/aix/native/sun/nio/ch/AixNativeThread.c
+@@ -32,7 +32,12 @@
+ #include "sun_nio_ch_NativeThread.h"
+ 
+ #include <pthread.h>
++
++#ifndef MUSL_LIBC
+ #include <sys/signal.h>
++#else
++#include <signal.h>
++#endif
+ 
+ /* Also defined in src/aix/native/java/net/aix_close.c */
+ #define INTERRUPT_SIGNAL (SIGRTMAX - 1)
+diff --git a/jdk/src/aix/native/sun/nio/ch/AixPollPort.c b/jdk/src/aix/native/sun/nio/ch/AixPollPort.c
+index 70064b890e..c0466dcc9f 100644
+--- a/jdk/src/aix/native/sun/nio/ch/AixPollPort.c
++++ b/jdk/src/aix/native/sun/nio/ch/AixPollPort.c
+@@ -34,13 +34,18 @@
+ #include <unistd.h>
+ #include <sys/types.h>
+ #include <sys/socket.h>
+-#include <sys/poll.h>
+ #include <sys/pollset.h>
+ #include <fcntl.h>
+ #include <stddef.h>
+ #include <dlfcn.h>
+ #include <errno.h>
+ 
++#ifndef MUSL_LIBC
++#include <sys/poll.h>
++#else
++#include <poll.h>
++#endif
++
+ /* Initially copied from src/solaris/native/sun/nio/ch/nio_util.h */
+ #define RESTARTABLE(_cmd, _result) do { \
+   do { \
+diff --git a/jdk/src/macosx/javavm/export/jvm_md.h b/jdk/src/macosx/javavm/export/jvm_md.h
+index 012bb1babe..592bfb5ab9 100644
+--- a/jdk/src/macosx/javavm/export/jvm_md.h
++++ b/jdk/src/macosx/javavm/export/jvm_md.h
+@@ -60,7 +60,12 @@
+ #include <sys/stat.h>
+ #include <fcntl.h>
+ #include <errno.h>
++
++#ifndef MUSL_LIBC
+ #include <sys/signal.h>
++#else
++#include <signal.h>
++#endif
+ 
+ /* O Flags */
+ 
+diff --git a/jdk/src/share/native/com/sun/java/util/jar/pack/zip.cpp b/jdk/src/share/native/com/sun/java/util/jar/pack/zip.cpp
+index f58c94956c..0afbf6bb98 100644
+--- a/jdk/src/share/native/com/sun/java/util/jar/pack/zip.cpp
++++ b/jdk/src/share/native/com/sun/java/util/jar/pack/zip.cpp
+@@ -46,6 +46,10 @@
+ 
+ #include "zip.h"
+ 
++#ifdef MUSL_LIBC
++#define uchar unsigned char
++#endif
++
+ #ifdef NO_ZLIB
+ 
+ inline bool jar::deflate_bytes(bytes& head, bytes& tail) {
+diff --git a/jdk/src/share/native/com/sun/java/util/jar/pack/zip.h b/jdk/src/share/native/com/sun/java/util/jar/pack/zip.h
+index 14ffc9d65b..4137714f7d 100644
+--- a/jdk/src/share/native/com/sun/java/util/jar/pack/zip.h
++++ b/jdk/src/share/native/com/sun/java/util/jar/pack/zip.h
+@@ -23,9 +23,13 @@
+  * questions.
+  */
+ 
++#ifndef MUSL_LIBC
+ #define ushort unsigned short
+ #define uint   unsigned int
+ #define uchar  unsigned char
++#else
++#include <sys/types.h>
++#endif
+ 
+ struct unpacker;
+ 
+diff --git a/jdk/src/share/native/java/lang/System.c b/jdk/src/share/native/java/lang/System.c
+index 04ef657465..b06a38f87e 100644
+--- a/jdk/src/share/native/java/lang/System.c
++++ b/jdk/src/share/native/java/lang/System.c
+@@ -110,13 +110,13 @@ Java_java_lang_System_identityHashCode(JNIEnv *env, jobject this, jobject x)
+ 
+ /* Third party may overwrite these values. */
+ #ifndef VENDOR
+-#define VENDOR "Oracle Corporation"
++#define VENDOR "Eclipse Foundation"
+ #endif
+ #ifndef VENDOR_URL
+-#define VENDOR_URL "http://java.oracle.com/"
++#define VENDOR_URL "https://adoptium.net/"
+ #endif
+ #ifndef VENDOR_URL_BUG
+-#define VENDOR_URL_BUG "http://bugreport.sun.com/bugreport/"
++#define VENDOR_URL_BUG "https://github.com/adoptium/adoptium-support/issues"
+ #endif
+ 
+ #define JAVA_MAX_SUPPORTED_VERSION 52
+diff --git a/jdk/src/share/native/sun/awt/medialib/mlib_types.h b/jdk/src/share/native/sun/awt/medialib/mlib_types.h
+index aba0394ffd..ad548aef64 100644
+--- a/jdk/src/share/native/sun/awt/medialib/mlib_types.h
++++ b/jdk/src/share/native/sun/awt/medialib/mlib_types.h
+@@ -27,6 +27,10 @@
+ #ifndef MLIB_TYPES_H
+ #define MLIB_TYPES_H
+ 
++#ifdef MUSL_LIBC
++#include <stddef.h>                     /* for NULL */
++#endif
++
+ #include <limits.h>
+ #if defined(_MSC_VER)
+ #include <float.h>                      /* for FLT_MAX and DBL_MAX */
+diff --git a/jdk/src/solaris/bin/java_md_solinux.c b/jdk/src/solaris/bin/java_md_solinux.c
+index e5056c44a7..58d3d7492a 100644
+--- a/jdk/src/solaris/bin/java_md_solinux.c
++++ b/jdk/src/solaris/bin/java_md_solinux.c
+@@ -292,6 +292,10 @@ RequiresSetenv(int wanted, const char *jvmpath) {
+     char *dmllp = NULL;
+     char *p; /* a utility pointer */
+ 
++#ifdef MUSL_LIBC
++    return JNI_TRUE;
++#endif
++
+ #ifdef AIX
+     /* We always have to set the LIBPATH on AIX because ld doesn't support $ORIGIN. */
+     return JNI_TRUE;
+diff --git a/jdk/src/solaris/javavm/export/jvm_md.h b/jdk/src/solaris/javavm/export/jvm_md.h
+index 5c681914bb..a181456010 100644
+--- a/jdk/src/solaris/javavm/export/jvm_md.h
++++ b/jdk/src/solaris/javavm/export/jvm_md.h
+@@ -65,7 +65,12 @@
+ #include <sys/stat.h>
+ #include <fcntl.h>
+ #include <errno.h>
++
++#ifndef MUSL_LIBC
+ #include <sys/signal.h>
++#else
++#include <signal.h>
++#endif
+ 
+ /* O Flags */
+ 
+diff --git a/jdk/src/solaris/native/java/lang/UNIXProcess_md.c b/jdk/src/solaris/native/java/lang/UNIXProcess_md.c
+index 9b510ad3a9..ad233a2a76 100644
+--- a/jdk/src/solaris/native/java/lang/UNIXProcess_md.c
++++ b/jdk/src/solaris/native/java/lang/UNIXProcess_md.c
+@@ -550,7 +550,11 @@ static pid_t
+ startChild(JNIEnv *env, jobject process, ChildStuff *c, const char *helperpath) {
+     switch (c->mode) {
+       case MODE_VFORK:
++// use regular fork when running on musl
++// this should fix deadlocks on aarch64
++#ifndef MUSL_LIBC
+         return vforkChild(c);
++#endif
+       case MODE_FORK:
+         return forkChild(c);
+ #if defined(__solaris__) || defined(_ALLBSD_SOURCE) || defined(_AIX)
+@@ -649,8 +653,12 @@ Java_java_lang_UNIXProcess_forkAndExec(JNIEnv *env,
+     if (resultPid < 0) {
+         switch (c->mode) {
+           case MODE_VFORK:
++// use regular fork when running on musl
++// this should fix deadlocks on aarch64
++#ifndef MUSL_LIBC
+             throwIOException(env, errno, "vfork failed");
+             break;
++#endif
+           case MODE_FORK:
+             throwIOException(env, errno, "fork failed");
+             break;
+diff --git a/jdk/src/solaris/native/java/lang/childproc.c b/jdk/src/solaris/native/java/lang/childproc.c
+index c0045d5371..2d20db6185 100644
+--- a/jdk/src/solaris/native/java/lang/childproc.c
++++ b/jdk/src/solaris/native/java/lang/childproc.c
+@@ -23,7 +23,6 @@
+  * questions.
+  */
+ 
+-#include <dirent.h>
+ #include <errno.h>
+ #include <fcntl.h>
+ #include <stdlib.h>
+@@ -31,6 +30,12 @@
+ #include <unistd.h>
+ #include <limits.h>
+ 
++#ifndef MUSL_LIBC
++#include <dirent.h>
++#else
++#include <poll.h>
++#endif
++
+ #include "childproc.h"
+ 
+ const char * const *parentPathv;
+@@ -57,6 +62,8 @@ closeSafely(int fd)
+     return (fd == -1) ? 0 : close(fd);
+ }
+ 
++#ifndef MUSL_LIBC
++
+ int
+ isAsciiDigit(char c)
+ {
+@@ -115,6 +122,54 @@ closeDescriptors(void)
+     return 1;
+ }
+ 
++#else // Musl
++
++int
++closeDescriptors(void)
++{
++    int from_fd = FAIL_FILENO + 1;
++    struct pollfd pfds[1024];
++    int i, total, nclosed = 0;
++    int max_fd = sysconf(_SC_OPEN_MAX);
++
++    if (max_fd < 0)
++        return 0;
++
++    /* init events */
++    total = max_fd - from_fd;
++    for (i = 0; i < (total < 1024 ? total : 1024); i++) {
++        pfds[i].events = 0;
++    }
++
++    while (from_fd < max_fd) {
++        int nfds, r = 0;
++
++        total = max_fd - from_fd;
++        nfds =  total < 1024 ? total : 1024;
++
++        for (i = 0; i < nfds; i++)
++            pfds[i].fd = from_fd + i;
++
++        do {
++            r = poll(pfds, nfds, 0);
++        } while (r == -1 && errno == EINTR);
++
++        if (r < 0)
++            return 0;
++
++
++        for (i = 0; i < nfds; i++)
++            if (pfds[i].revents != POLLNVAL) {
++                nclosed++;
++                close(pfds[i].fd);
++            }
++        from_fd += nfds;
++    }
++    return 1;
++}
++
++#endif
++
+ int
+ moveDescriptor(int fd_from, int fd_to)
+ {
+diff --git a/jdk/src/solaris/native/java/net/Inet4AddressImpl.c b/jdk/src/solaris/native/java/net/Inet4AddressImpl.c
+index 8b2e3cdce9..6a4a513c0d 100644
+--- a/jdk/src/solaris/native/java/net/Inet4AddressImpl.c
++++ b/jdk/src/solaris/native/java/net/Inet4AddressImpl.c
+@@ -47,7 +47,7 @@
+ 
+ #include "java_net_Inet4AddressImpl.h"
+ 
+-#if defined(__GLIBC__) || (defined(__FreeBSD__) && (__FreeBSD_version >= 601104))
++#if defined(__linux__) || (defined(__FreeBSD__) && (__FreeBSD_version >= 601104))
+ #define HAS_GLIBC_GETHOSTBY_R   1
+ #endif
+ 
+diff --git a/jdk/src/solaris/native/java/net/bsd_close.c b/jdk/src/solaris/native/java/net/bsd_close.c
+index a6050e1f9a..e77f973443 100644
+--- a/jdk/src/solaris/native/java/net/bsd_close.c
++++ b/jdk/src/solaris/native/java/net/bsd_close.c
+@@ -38,7 +38,12 @@
+ #include <sys/uio.h>
+ #include <unistd.h>
+ #include <errno.h>
++
++#ifndef MUSL_LIBC
+ #include <sys/poll.h>
++#else
++#include <poll.h>
++#endif
+ #include "jvm.h"
+ 
+ /*
+diff --git a/jdk/src/solaris/native/java/net/linux_close.c b/jdk/src/solaris/native/java/net/linux_close.c
+index c7a148c746..327cc7ac5b 100644
+--- a/jdk/src/solaris/native/java/net/linux_close.c
++++ b/jdk/src/solaris/native/java/net/linux_close.c
+@@ -36,7 +36,12 @@
+ #include <sys/uio.h>
+ #include <unistd.h>
+ #include <errno.h>
++
++#ifndef MUSL_LIBC
+ #include <sys/poll.h>
++#else
++#include <poll.h>
++#endif
+ #include "jvm.h"
+ 
+ /*
+@@ -59,7 +64,7 @@ typedef struct {
+ /*
+  * Signal to unblock thread
+  */
+-static int sigWakeup = (__SIGRTMAX - 2);
++static int sigWakeup;
+ 
+ /*
+  * fdTable holds one entry per file descriptor, up to a certain
+@@ -148,6 +153,9 @@ static void __attribute((constructor)) init() {
+     /*
+      * Setup the signal handler
+      */
++#ifndef _AIX
++    sigWakeup = SIGRTMAX - 2;
++#endif
+     sa.sa_handler = sig_wakeup;
+     sa.sa_flags   = 0;
+     sigemptyset(&sa.sa_mask);
+diff --git a/jdk/src/solaris/native/java/net/net_util_md.c b/jdk/src/solaris/native/java/net/net_util_md.c
+index bd0bd8c2c9..4c021aea4d 100644
+--- a/jdk/src/solaris/native/java/net/net_util_md.c
++++ b/jdk/src/solaris/native/java/net/net_util_md.c
+@@ -662,7 +662,7 @@ struct localinterface {
+ 
+ static struct localinterface *localifs = 0;
+ static int localifsSize = 0;    /* size of array */
+-static int nifs = 0;            /* number of entries used in array */
++static int nifs = -1; /* number of entries used in array */
+ 
+ /* not thread safe: make sure called once from one thread */
+ 
+@@ -674,6 +674,10 @@ static void initLocalIfs () {
+     int index, x1, x2, x3;
+     unsigned int u0,u1,u2,u3,u4,u5,u6,u7,u8,u9,ua,ub,uc,ud,ue,uf;
+ 
++    if (nifs >= 0)
++	    return ;
++    nifs = 0;
++
+     if ((f = fopen("/proc/net/if_inet6", "r")) == NULL) {
+         return ;
+     }
+@@ -702,7 +706,7 @@ static void initLocalIfs () {
+             localifs = (struct localinterface *) realloc (
+                         localifs, sizeof (struct localinterface)* (localifsSize+5));
+             if (localifs == 0) {
+-                nifs = 0;
++                nifs = -1;
+                 fclose (f);
+                 return;
+             }
+@@ -725,9 +729,7 @@ static void initLocalIfs () {
+ static int getLocalScopeID (char *addr) {
+     struct localinterface *lif;
+     int i;
+-    if (localifs == 0) {
+-        initLocalIfs();
+-    }
++    initLocalIfs();
+     for (i=0, lif=localifs; i<nifs; i++, lif++) {
+         if (memcmp (addr, lif->localaddr, 16) == 0) {
+             return lif->index;
+diff --git a/jdk/src/solaris/native/java/net/net_util_md.h b/jdk/src/solaris/native/java/net/net_util_md.h
+index a48446de9c..d0b61a6ba1 100644
+--- a/jdk/src/solaris/native/java/net/net_util_md.h
++++ b/jdk/src/solaris/native/java/net/net_util_md.h
+@@ -33,7 +33,11 @@
+ #include <unistd.h>
+ 
+ #ifndef USE_SELECT
+-#include <sys/poll.h>
++#ifndef MUSL_LIBC
++  #include <sys/poll.h>
++#else
++  #include <poll.h>
++#endif
+ #endif
+ 
+ 
+diff --git a/jdk/src/solaris/native/sun/nio/ch/DevPollArrayWrapper.c b/jdk/src/solaris/native/sun/nio/ch/DevPollArrayWrapper.c
+index 6860a167bb..b581508cf4 100644
+--- a/jdk/src/solaris/native/sun/nio/ch/DevPollArrayWrapper.c
++++ b/jdk/src/solaris/native/sun/nio/ch/DevPollArrayWrapper.c
+@@ -28,10 +28,15 @@
+ #include "jvm.h"
+ #include "jlong.h"
+ #include "sun_nio_ch_DevPollArrayWrapper.h"
+-#include <sys/poll.h>
+ #include <unistd.h>
+ #include <sys/time.h>
+ 
++#ifndef MUSL_LIBC
++#include <sys/poll.h>
++#else
++#include <poll.h>
++#endif
++
+ #ifdef  __cplusplus
+ extern "C" {
+ #endif
+diff --git a/jdk/src/solaris/native/sun/nio/ch/NativeThread.c b/jdk/src/solaris/native/sun/nio/ch/NativeThread.c
+index 5e2a78b7af..b512b10aed 100644
+--- a/jdk/src/solaris/native/sun/nio/ch/NativeThread.c
++++ b/jdk/src/solaris/native/sun/nio/ch/NativeThread.c
+@@ -34,9 +34,13 @@
+ 
+ #ifdef __linux__
+   #include <pthread.h>
+-  #include <sys/signal.h>
++  #ifndef MUSL_LIBC
++    #include <sys/signal.h>
++  #else
++    #include <signal.h>
++  #endif
+   /* Also defined in net/linux_close.c */
+-  #define INTERRUPT_SIGNAL (__SIGRTMAX - 2)
++  #define INTERRUPT_SIGNAL (SIGRTMAX - 2)
+ #elif __solaris__
+   #include <thread.h>
+   #include <signal.h>
+diff --git a/jdk/src/solaris/native/sun/nio/ch/Net.c b/jdk/src/solaris/native/sun/nio/ch/Net.c
+index fcb6197c1d..37f04646bd 100644
+--- a/jdk/src/solaris/native/sun/nio/ch/Net.c
++++ b/jdk/src/solaris/native/sun/nio/ch/Net.c
+@@ -23,7 +23,12 @@
+  * questions.
+  */
+ 
++#ifndef MUSL_LIBC
+ #include <sys/poll.h>
++#else
++#include <poll.h>
++#endif
++
+ #include <sys/types.h>
+ #include <sys/socket.h>
+ #include <string.h>
+diff --git a/jdk/src/solaris/native/sun/nio/fs/LinuxWatchService.c b/jdk/src/solaris/native/sun/nio/fs/LinuxWatchService.c
+index 375aaa4850..d2169095a2 100644
+--- a/jdk/src/solaris/native/sun/nio/fs/LinuxWatchService.c
++++ b/jdk/src/solaris/native/sun/nio/fs/LinuxWatchService.c
+@@ -32,9 +32,14 @@
+ #include <dlfcn.h>
+ #include <sys/types.h>
+ #include <sys/socket.h>
+-#include <sys/poll.h>
+ #include <sys/inotify.h>
+ 
++#ifndef MUSL_LIBC
++#include <sys/poll.h>
++#else
++#include <poll.h>
++#endif
++
+ #include "sun_nio_fs_LinuxWatchService.h"
+ 
+ static void throwUnixException(JNIEnv* env, int errnum) {
+diff --git a/jdk/src/solaris/native/sun/tools/attach/LinuxVirtualMachine.c b/jdk/src/solaris/native/sun/tools/attach/LinuxVirtualMachine.c
+index 6017308d0b..a583b4bae8 100644
+--- a/jdk/src/solaris/native/sun/tools/attach/LinuxVirtualMachine.c
++++ b/jdk/src/solaris/native/sun/tools/attach/LinuxVirtualMachine.c
+@@ -195,6 +195,9 @@ JNIEXPORT void JNICALL Java_sun_tools_attach_LinuxVirtualMachine_connect
+ JNIEXPORT jboolean JNICALL Java_sun_tools_attach_LinuxVirtualMachine_isLinuxThreads
+   (JNIEnv *env, jclass cls)
+ {
++# ifdef MUSL_LIBC
++   return JNI_FALSE;
++# else
+ # ifndef _CS_GNU_LIBPTHREAD_VERSION
+ # define _CS_GNU_LIBPTHREAD_VERSION 3
+ # endif
+@@ -222,6 +225,7 @@ JNIEXPORT jboolean JNICALL Java_sun_tools_attach_LinuxVirtualMachine_isLinuxThre
+     res = (jboolean)(strstr(s, "NPTL") == NULL);
+     free(s);
+     return res;
++# endif
+ }
+ 
+ /*
+diff --git a/jdk/src/solaris/native/sun/xawt/XToolkit.c b/jdk/src/solaris/native/sun/xawt/XToolkit.c
+index 24557cba41..1123389585 100644
+--- a/jdk/src/solaris/native/sun/xawt/XToolkit.c
++++ b/jdk/src/solaris/native/sun/xawt/XToolkit.c
+@@ -27,9 +27,6 @@
+ #include <X11/Xutil.h>
+ #include <X11/Xos.h>
+ #include <X11/Xatom.h>
+-#ifdef __linux__
+-#include <execinfo.h>
+-#endif
+ 
+ #include <jvm.h>
+ #include <jni.h>
+@@ -796,26 +793,6 @@ JNIEXPORT jstring JNICALL Java_sun_awt_X11_XToolkit_getEnv
+     return ret;
+ }
+ 
+-#ifdef __linux__
+-void print_stack(void)
+-{
+-  void *array[10];
+-  size_t size;
+-  char **strings;
+-  size_t i;
+-
+-  size = backtrace (array, 10);
+-  strings = backtrace_symbols (array, size);
+-
+-  fprintf (stderr, "Obtained %zd stack frames.\n", size);
+-
+-  for (i = 0; i < size; i++)
+-     fprintf (stderr, "%s\n", strings[i]);
+-
+-  free (strings);
+-}
+-#endif
+-
+ Window get_xawt_root_shell(JNIEnv *env) {
+   static jclass classXRootWindow = NULL;
+   static jmethodID methodGetXRootWindow = NULL;
+diff --git a/jdk/src/solaris/transport/socket/socket_md.c b/jdk/src/solaris/transport/socket/socket_md.c
+index 33e062e087..e4f6b56ad4 100644
+--- a/jdk/src/solaris/transport/socket/socket_md.c
++++ b/jdk/src/solaris/transport/socket/socket_md.c
+@@ -34,10 +34,14 @@
+ #include <string.h>
+ #include <sys/time.h>
+ #ifdef __solaris__
+-#include <thread.h>
++  #include <thread.h>
+ #else
+-#include <pthread.h>
+-#include <sys/poll.h>
++  #include <pthread.h>
++  #ifndef MUSL_LIBC
++    #include <sys/poll.h>
++  #else
++    #include <poll.h>
++  #endif
+ #endif
+ 
+ #include "socket_md.h"
+-- 
+2.39.0

@@ -1,19 +1,19 @@
-From fe098d6310075681475ffece69faf1e8e715b5e9 Mon Sep 17 00:00:00 2001
-From: John Oliver <johno@insightfullogic.com>
-Date: Thu, 30 Aug 2018 14:22:52 +0100
-Subject: [PATCH] Allow setting company name
+From 64e700caf63749a574abf84511420cc22c74217f Mon Sep 17 00:00:00 2001
+From: George Adams <georgeadams1995@gmail.com>
+Date: Mon, 6 Dec 2021 11:26:48 +0000
+Subject: [PATCH] apply [PATCH] Allow setting company name
 
 ---
- common/autoconf/jdk-options.m4                       | 11 +++++++++++
- jdk/make/gensrc/GensrcMisc.gmk                       |  6 ++++++
- jdk/src/share/classes/sun/misc/Version.java.template |  7 +++++--
- 3 files changed, 22 insertions(+), 2 deletions(-)
+ common/autoconf/jdk-options.m4                | 12 ++++++++++
+ jdk/make/gensrc/GensrcMisc.gmk                |  6 +++++
+ .../classes/sun/misc/Version.java.template    |  7 ++++--
+ 3 files changed, 23 insertions(+), 2 deletions(-)
 
 diff --git a/common/autoconf/jdk-options.m4 b/common/autoconf/jdk-options.m4
-index 18ba585209..ae9d5308f4 100644
+index 18ba585209..42aeb7bd61 100644
 --- a/common/autoconf/jdk-options.m4
 +++ b/common/autoconf/jdk-options.m4
-@@ -539,6 +539,17 @@ AC_DEFUN_ONCE([JDKOPT_SETUP_JDK_VERSION_NUMBERS],
+@@ -539,6 +539,18 @@ AC_DEFUN_ONCE([JDKOPT_SETUP_JDK_VERSION_NUMBERS],
    AC_SUBST(MACOSX_BUNDLE_NAME_BASE)
    AC_SUBST(MACOSX_BUNDLE_ID_BASE)
  
@@ -27,12 +27,13 @@ index 18ba585209..ae9d5308f4 100644
 +  elif test "x$with_company_name" != x; then
 +    COMPANY_NAME="$with_company_name"
 +  fi
++  AC_SUBST(COMPANY_NAME)
 +
    # The vendor name, if any
    AC_ARG_WITH(vendor-name, [AS_HELP_STRING([--with-vendor-name],
        [Set vendor name. Among others, used to set the 'java.vendor'
 diff --git a/jdk/make/gensrc/GensrcMisc.gmk b/jdk/make/gensrc/GensrcMisc.gmk
-index 0e3dee5ca3..c137f371c7 100644
+index 0e3dee5ca3..fc19b082cc 100644
 --- a/jdk/make/gensrc/GensrcMisc.gmk
 +++ b/jdk/make/gensrc/GensrcMisc.gmk
 @@ -30,6 +30,11 @@ include ProfileNames.gmk
@@ -47,14 +48,14 @@ index 0e3dee5ca3..c137f371c7 100644
  $(JDK_OUTPUTDIR)/gensrc/sun/misc/Version.java \
  $(PROFILE_VERSION_JAVA_TARGETS): \
      $(JDK_TOPDIR)/src/share/classes/sun/misc/Version.java.template
-@@ -40,6 +45,7 @@ $(PROFILE_VERSION_JAVA_TARGETS): \
- 	    -e 's/@@java_version@@/$(RELEASE)/g' \
+@@ -41,6 +46,7 @@ $(PROFILE_VERSION_JAVA_TARGETS): \
  	    -e 's/@@java_runtime_version@@/$(FULL_VERSION)/g' \
  	    -e 's/@@java_runtime_name@@/$(RUNTIME_NAME)/g' \
-+	    -e 's/@@company_name@@/$(company_name)/g' \
  	    -e 's/@@java_profile_name@@/$(call profile_version_name, $@)/g' \
++      -e 's/@@company_name@@/$(company_name)/g' \
  	    $< > $@.tmp
  	$(MV) $@.tmp $@
+ 
 diff --git a/jdk/src/share/classes/sun/misc/Version.java.template b/jdk/src/share/classes/sun/misc/Version.java.template
 index 32e2586e79..b1642d3f0a 100644
 --- a/jdk/src/share/classes/sun/misc/Version.java.template
@@ -84,8 +85,8 @@ index 32e2586e79..b1642d3f0a 100644
          String java_vm_info    = System.getProperty("java.vm.info");
 -        ps.println(java_vm_name + " (build " + java_vm_version + ", " +
 +        ps.println(java_vm_name + " " + company_name + "(build " + java_vm_version + ", " +
-                    java_vm_info + ")");
+                     java_vm_info + ")");
      }
  
 -- 
-2.7.4
+2.52.0

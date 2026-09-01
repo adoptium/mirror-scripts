@@ -32,6 +32,48 @@ function checkArgs() {
   fi
 }
 
+# For jdk8u-based repos, common/autoconf/generated-configure.sh is a build-generated file
+# that frequently conflicts during merges/rebases/patches because it is regenerated from
+# common/autoconf/*.m4 sources. This function checks if it is the ONLY conflict and if so,
+# regenerates it via autogen.sh and stages the result.
+# Must be called from within the repo working directory.
+# Returns 0 if the conflict was resolved, 1 if there are other conflicts (caller must fail).
+function resolveGeneratedConfigureConflict() {
+  local GENERATED_CONFIGURE="common/autoconf/generated-configure.sh"
+  local AUTOGEN="common/autoconf/autogen.sh"
+
+  # Only applies to jdk8u-based repos that have the autogen script
+  if [[ "${VERSION}" != "8" ]]; then
+    return 1
+  fi
+
+  # Get list of conflicted files
+  local conflicts
+  conflicts=$(git diff --name-only --diff-filter=U)
+
+  if [[ -z "$conflicts" ]]; then
+    return 1
+  fi
+
+  # Check if generated-configure.sh is the only conflict
+  if [[ "$conflicts" != "$GENERATED_CONFIGURE" ]]; then
+    echo "ERROR: Conflicts exist in files other than $GENERATED_CONFIGURE:"
+    echo "$conflicts"
+    return 1
+  fi
+
+  echo "Resolving $GENERATED_CONFIGURE conflict by regenerating via autogen.sh"
+  if [ ! -f "$AUTOGEN" ]; then
+    echo "ERROR: $AUTOGEN not found — cannot regenerate $GENERATED_CONFIGURE"
+    return 1
+  fi
+
+  bash "$AUTOGEN" || return 1
+  git add "$GENERATED_CONFIGURE" || return 1
+  echo "Successfully regenerated and staged $GENERATED_CONFIGURE"
+  return 0
+}
+
 function cloneGitHubRepo() {
   cd "$WORKSPACE" || exit 1
   # If we don't have a $GITHUB_REPO locally then clone it from adoptium/$GITHUB_REPO.git
@@ -44,27 +86,46 @@ function addSkaralUpstream() {
   cd "$WORKSPACE/$GITHUB_REPO" || exit 1
 
   git fetch --all
-  if ! git checkout -f "$BRANCH" ; then
-    if ! git rev-parse -q --verify "origin/$BRANCH" ; then
-      git checkout -b "$BRANCH" || exit 1
-    else
-      git checkout -b "$BRANCH" origin/"$BRANCH" || exit 1
-    fi
-  else
-    git reset --hard origin/"$BRANCH" || echo "Not resetting as no upstream exists"
-  fi
 
+  # Ensure the skara remote exists before we need it
   # shellcheck disable=SC2143
   if [ -z "$(git remote -v | grep 'skara')" ] ; then
     echo "Initial setup of $SKARA_REPO"
     git remote add skara "$SKARA_REPO"
+  fi
+
+  # Fetch skara so skara/$BRANCH is available for branch creation below
+  git fetch skara
+
+  if ! git checkout -f "$BRANCH" ; then
+    if ! git rev-parse -q --verify "origin/$BRANCH" ; then
+      # Branch does not exist locally or on origin — create it from skara/$BRANCH
+      # so it starts at the correct upstream commit, not the current HEAD
+      git checkout -b "$BRANCH" "skara/$BRANCH" || exit 1
+    else
+      git checkout -b "$BRANCH" "origin/$BRANCH" || exit 1
+    fi
+  else
+    # Only reset to origin/$BRANCH if it has been pushed there previously
+    if git rev-parse -q --verify "origin/$BRANCH" ; then
+      git reset --hard "origin/$BRANCH" || exit 1
+    else
+      echo "No origin/$BRANCH exists yet, skipping reset"
+    fi
   fi
 }
 
 function performMergeFromSkaraIntoGit() {
   git fetch skara --tags
 
-  git rebase "skara/$BRANCH" "$BRANCH"
+  if ! git rebase "skara/$BRANCH" "$BRANCH" ; then
+    if resolveGeneratedConfigureConflict ; then
+      git rebase --continue || exit 1
+    else
+      git rebase --abort
+      exit 1
+    fi
+  fi
 
   git push -u origin "$BRANCH" || exit 1
   git push origin "$BRANCH" --tags || exit 1
@@ -85,10 +146,13 @@ function performMergeIntoReleaseFromMaster() {
   buildTags=$(git tag --merged origin/"$BRANCH" $TAG_SEARCH || exit 1)
   sortedBuildTags=$(echo "$buildTags" | eval "$jdk_sort_tags_cmd" || exit 1)
 
+  NEW_RELEASE_BRANCH_TAG=""
   if ! git checkout -f "$RELEASE_BRANCH" ; then
     if ! git rev-parse -q --verify "origin/$RELEASE_BRANCH" ; then
       currentBuildTag=$(echo "$buildTags" | eval "$jdk_sort_tags_cmd" | tail -1 || exit 1)
       git checkout -b "$RELEASE_BRANCH" $currentBuildTag || exit 1
+      # Remember the tag this new branch was created from so we can _adopt tag it after patching
+      NEW_RELEASE_BRANCH_TAG="$currentBuildTag"
     else
       git checkout -b "$RELEASE_BRANCH" "origin/$RELEASE_BRANCH" || exit 1
     fi
@@ -96,22 +160,95 @@ function performMergeIntoReleaseFromMaster() {
     git reset --hard "origin/$RELEASE_BRANCH" || echo "Not resetting as no upstream exists"
   fi
 
-  # Apply our patches to release branch
-  echo "Checking if patches need to be applied for $GITHUB_REPO"
-
-  # actions ignore branch patch is for > jdk11u
-  if [[ "$GITHUB_REPO" != "jdk8u" ]] && [[ "$GITHUB_REPO" != "aarch32-port-jdk8u" ]] && [[ "$GITHUB_REPO" != "jdk11u" ]]; then
-    # check to see if patch has already been applied
-    if ! grep -q "\\- dev" "$WORKSPACE/$GITHUB_REPO/.github/workflows/main.yml"; then
-      echo "Applying actions-ignore-branches.patch"
-      git am $PATCHES/actions-ignore-branches.patch
-    fi
-  fi
-
-  # README.JAVASE patch needed for all repos
+  # Apply Adoptium patches to release branch, gated on README.JAVASE not existing
+  # (README.JAVASE is the Adoptium marker file — its absence means no patches have been applied yet)
   if [ ! -f "$WORKSPACE/$GITHUB_REPO/README.JAVASE" ]; then
-    echo "Applying README.JAVASE.patch"
-    git am $PATCHES/readme-javase.patch
+    echo "Applying Adoptium patches for $GITHUB_REPO"
+
+    # Step 1: Apply top-level patches, skipping any whose filename also exists in patches/<GITHUB_REPO>/
+    # (repo-specific patches in the sub-folder take precedence and will be applied in step 2)
+    for patchFile in "$PATCHES"*.patch; do
+      [ -f "$patchFile" ] || continue
+      patchName=$(basename "$patchFile")
+      if [ -f "$PATCHES$GITHUB_REPO/$patchName" ]; then
+        echo "Skipping top-level $patchName (overridden by patches/$GITHUB_REPO/$patchName)"
+      else
+        echo "Applying top-level patch: $patchName"
+        if [[ ! -s "$patchFile" ]]; then
+          echo "Skipping empty patch: $patchName"
+          continue
+        fi
+        if ! git am --ignore-whitespace -3 "$patchFile" ; then
+          if resolveGeneratedConfigureConflict ; then
+            git am --continue || exit 1
+          else
+            git am --abort
+            exit 1
+          fi
+        fi
+      fi
+    done
+
+    # Step 2: Apply repo-specific patches from patches/<GITHUB_REPO>/ if that folder exists
+    # Use --ignore-whitespace -3 for 3-way merge fallback, which handles context mismatches
+    # when patches were generated against an older version of upstream files
+    if [ -d "$PATCHES$GITHUB_REPO" ]; then
+      for patchFile in "$PATCHES$GITHUB_REPO"/*.patch; do
+        [ -f "$patchFile" ] || continue
+        patchName=$(basename "$patchFile")
+        echo "Applying repo-specific patch: $patchName"
+        if [[ ! -s "$patchFile" ]]; then
+          echo "Skipping empty patch: $patchName"
+          continue
+        fi
+        if ! git am --ignore-whitespace -3 "$patchFile" ; then
+          if resolveGeneratedConfigureConflict ; then
+            git am --continue || exit 1
+          else
+            git am --abort
+            exit 1
+          fi
+        fi
+      done
+    fi
+
+    # For JDK 8 repos, regenerate generated-configure.sh after all patches have been applied.
+    # company_name.patch modifies jdk-options.m4 but does not include the generated file
+    # (unlike the alpine-jdk8u variant which bundles both). The JDK 8 configure wrapper
+    # runs the checked-in generated script, so without regeneration --with-company-name
+    # is unavailable at build time. autogen.sh is idempotent — if the patch already
+    # included the generated file (e.g. alpine-jdk8u/0002) this produces no diff.
+    if [[ "${VERSION}" == "8" ]]; then
+      local AUTOGEN="common/autoconf/autogen.sh"
+      local GENERATED="common/autoconf/generated-configure.sh"
+      if [ -f "$AUTOGEN" ]; then
+        echo "Regenerating $GENERATED after patch application"
+        bash "$AUTOGEN" || exit 1
+        if ! git diff --quiet "$GENERATED" ; then
+          git add "$GENERATED"
+          git commit --no-edit -m "Regenerate generated-configure.sh after Adoptium patches" || exit 1
+          echo "Committed regenerated $GENERATED"
+        else
+          echo "$GENERATED already up to date, no commit needed"
+        fi
+      else
+        echo "WARNING: $AUTOGEN not found — skipping $GENERATED regeneration"
+      fi
+    fi
+
+    # If this is a brand new release branch, tag the base build tag with _adopt now that
+    # patches have been applied — the merge loop below will find no new tags to process
+    if [[ -n "$NEW_RELEASE_BRANCH_TAG" ]]; then
+      local adoptTag="${NEW_RELEASE_BRANCH_TAG}_adopt"
+      if [ "$(git tag -l "$adoptTag")" == "" ]; then
+        echo "Tagging new $RELEASE_BRANCH base tag ${adoptTag}"
+        git tag -a "$adoptTag" -m "Merged ${NEW_RELEASE_BRANCH_TAG} into $RELEASE_BRANCH" || exit 1
+      else
+        echo "Adopt tag ${adoptTag} already exists, skipping"
+      fi
+    fi
+  else
+    echo "README.JAVASE already exists — patches already applied, skipping"
   fi
 
   # Find the latest release tag that is not in releaseTagExcludeList
@@ -158,7 +295,14 @@ function performMergeIntoReleaseFromMaster() {
       fi
       if [[ "$mergeTag" == true ]]; then
         echo "Merging build tag $tag into $RELEASE_BRANCH branch"
-        git merge -m"Merging $tag into $RELEASE_BRANCH" $tag || exit 1
+        if ! git merge -m"Merging $tag into $RELEASE_BRANCH" $tag ; then
+          if resolveGeneratedConfigureConflict ; then
+            git commit --no-edit || exit 1
+          else
+            git merge --abort
+            exit 1
+          fi
+        fi
         git tag -a "${tag}_adopt" -m "Merged $tag into $RELEASE_BRANCH" || exit 1
         newAdoptTags="${newAdoptTags} ${tag}_adopt"
       fi
@@ -232,12 +376,20 @@ function performMergeIntoDevFromMaster() {
 
   if ! git checkout -f "$DEV_BRANCH" ; then
     if ! git rev-parse -q --verify "origin/$DEV_BRANCH" ; then
-      git checkout -b "$DEV_BRANCH" || exit 1
+      # Branch does not exist locally or on origin — create it from $BRANCH (upstream default,
+      # already at latest HEAD from performMergeFromSkaraIntoGit), not from current HEAD
+      # which will be RELEASE_BRANCH after performMergeIntoReleaseFromMaster()
+      git checkout -b "$DEV_BRANCH" "$BRANCH" || exit 1
     else
       git checkout -b "$DEV_BRANCH" "origin/$DEV_BRANCH" || exit 1
     fi
   else
-    git reset --hard "origin/$DEV_BRANCH" || echo "Not resetting as no upstream exists"
+    # Only reset to origin/$DEV_BRANCH if it has been pushed there previously
+    if git rev-parse -q --verify "origin/$DEV_BRANCH" ; then
+      git reset --hard "origin/$DEV_BRANCH" || exit 1
+    else
+      echo "No origin/$DEV_BRANCH exists yet, skipping reset"
+    fi
   fi
 
   devTags=$(git tag --merged "$DEV_BRANCH" $TAG_SEARCH || exit 1)
@@ -246,10 +398,24 @@ function performMergeIntoDevFromMaster() {
 
   # Merge master "HEAD"
   echo "Merging origin/$BRANCH HEAD into $DEV_BRANCH branch"
-  git merge -m"Merging origin/$BRANCH HEAD into $DEV_BRANCH" origin/"$BRANCH" || exit 1
+  if ! git merge -m"Merging origin/$BRANCH HEAD into $DEV_BRANCH" origin/"$BRANCH" ; then
+    if resolveGeneratedConfigureConflict ; then
+      git commit --no-edit || exit 1
+    else
+      git merge --abort
+      exit 1
+    fi
+  fi
 
   # Merge latest patches from "release" branch
-  git merge -m"Merging latest patches from $RELEASE_BRANCH branch" "origin/$RELEASE_BRANCH" || exit 1
+  if ! git merge -m"Merging latest patches from $RELEASE_BRANCH branch" "origin/$RELEASE_BRANCH" ; then
+    if resolveGeneratedConfigureConflict ; then
+      git commit --no-edit || exit 1
+    else
+      git merge --abort
+      exit 1
+    fi
+  fi
 
   if git rev-parse -q --verify "origin/$DEV_BRANCH" ; then
     git --no-pager log --oneline "origin/$DEV_BRANCH..$DEV_BRANCH"
@@ -264,20 +430,33 @@ function performMergeIntoDevFromMaster() {
 
 checkArgs $#
 
-SKARA_REPO="https://github.com/openjdk/$1"
 GITHUB_REPO="$1"
-REPO=${2:-"git@github.com:adoptium/$GITHUB_REPO"}
-BRANCH=${BRANCH:=master}
 
-# Does this OpenJDK repo support version branching?
-VERSION_BRANCHING=false
-
-# jdk(head) is only repository currently supporting version branches
-if [[ "${GITHUB_REPO}" == "jdk" ]]; then
-  VERSION_BRANCHING=true
+# alpine-jdk8u mirrors from the upstream jdk8u Skara repo
+if [[ "${GITHUB_REPO}" == "alpine-jdk8u" ]]; then
+  SKARA_REPO="https://github.com/openjdk/jdk8u"
+else
+  SKARA_REPO="https://github.com/openjdk/${GITHUB_REPO}"
 fi
 
-if [[ "${VERSION_BRANCHING}" == false ]] || [[ "${BRANCH}" == "master" ]]; then
+# aarch32-port-jdk8u mirrors to the Adoptium repo named aarch32-jdk8u (without the "port-" prefix)
+if [[ "${GITHUB_REPO}" == "aarch32-port-jdk8u" ]]; then
+  REPO=${2:-"git@github.com:adoptium/aarch32-jdk8u"}
+else
+  REPO=${2:-"git@github.com:adoptium/$GITHUB_REPO"}
+fi
+
+# Determine the default branch of the upstream Skara repo via git ls-remote (no API token needed)
+SKARA_DEFAULT_BRANCH=$(git ls-remote --symref "${SKARA_REPO}" HEAD | grep '^ref:' | sed 's|ref: refs/heads/||;s/[[:space:]].*//' | tr -d '[:space:]')
+if [[ -z "${SKARA_DEFAULT_BRANCH}" ]]; then
+  echo "ERROR: Could not determine default branch for ${SKARA_REPO} - git ls-remote --symref returned unexpected output"
+  exit 1
+fi
+echo "Upstream default branch: ${SKARA_DEFAULT_BRANCH}"
+
+BRANCH=${BRANCH:=${SKARA_DEFAULT_BRANCH}}
+
+if [[ "${BRANCH}" == "${SKARA_DEFAULT_BRANCH}" ]]; then
   RELEASE_BRANCH="release"
   DEV_BRANCH="dev"
 else
@@ -307,7 +486,11 @@ fi
 jdk11plus_tag_sort1="sort -t+ -k2,2n"
 # Second, (stable) sort on (V), (W), (X), (P): P(Patch) is optional and defaulted to "0"
 jdk11plus_tag_sort2="sort -t. -k2,2n -k3,3n -k4,4n -k5,5n"
-# Ignore "..+0" branch fork point tags 
+# Ignore "..+0" branch fork point tags — these mark where the next version branched off master
+# and are not real builds. Build tags for the next version (e.g. jdk-21.0.15+1) only appear on
+# that new branch, never on master, so +0 is always the last visible tag for that version on
+# master. Including it would advance currentReleaseTag past any not-yet-tagged current-version
+# builds (e.g. jdk-21.0.14 GA), permanently locking them out of the merge loop.
 jdk11plus_sort_tags_cmd="grep -v _adopt | grep -v '\+0$' | sed 's/jdk-/jdk./g' | sed 's/+/.0.0+/g' | $jdk11plus_tag_sort1 | nl -n rz | $jdk11plus_tag_sort2 | sed 's/\.0\.0+/+/g' | cut -f2- | sed 's/jdk./jdk-/g'"
 
 # JDK8 tag sorting:
@@ -317,14 +500,22 @@ jdk11plus_sort_tags_cmd="grep -v _adopt | grep -v '\+0$' | sed 's/jdk-/jdk./g' |
 jdk8_tag_sort1="sort -tb -k2,2n"
 # Second, (stable) sort on (V), (W)
 jdk8_tag_sort2="sort -tu -k2,2n"
-# Ignore "..-b00" branch fork point tags
-jdk8_sort_tags_cmd="grep -v _adopt | grep -v '\-b00$' | $jdk8_tag_sort1 | nl -n rz | $jdk8_tag_sort2  | cut -f2-"
+# Ignore "..-b00" branch fork point tags (same reasoning as jdk11+ above).
+# Note: no "$" anchor — aarch32 tags embed -b00 mid-string, e.g. jdk8u504-b00-aarch32-20260731.
+jdk8_sort_tags_cmd="grep -v _adopt | grep -v '\-b00' | $jdk8_tag_sort1 | nl -n rz | $jdk8_tag_sort2  | cut -f2-"
 
 
 if [[ "${VERSION}" == "8" ]]; then
   jdk_sort_tags_cmd="${jdk8_sort_tags_cmd}"
 else
   jdk_sort_tags_cmd="${jdk11plus_sort_tags_cmd}"
+fi
+
+# For aarch32-port-jdk8u, the upstream Skara repo also contains non-aarch32 tags (inherited from
+# the parent jdk8u repo). Prepend a filter so only tags containing "aarch32" are considered —
+# this prevents non-aarch32 tags from being picked as the branch-point or merged into release/dev.
+if [[ "${GITHUB_REPO}" == "aarch32-port-jdk8u" ]]; then
+  jdk_sort_tags_cmd="grep 'aarch32' | ${jdk_sort_tags_cmd}"
 fi
 
 cloneGitHubRepo
