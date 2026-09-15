@@ -25,7 +25,13 @@ set -euo pipefail
 ### Input args: $jdkversion <adoptium_repo_url> <feature_branch_name>
 
 JDKVERSION="$1"
-ADOPTIUM_REPO=${2:-"https://github.com/adoptium/$JDKVERSION.git"}
+# Update releases (jdk8u, jdk11u, …) have a dedicated adoptium/<version> repo.
+# Non-update feature releases (jdk25, jdk27, …) live in the shared adoptium/jdk repo.
+if [[ "$JDKVERSION" == *u ]]; then
+  ADOPTIUM_REPO=${2:-"https://github.com/adoptium/${JDKVERSION}.git"}
+else
+  ADOPTIUM_REPO=${2:-"https://github.com/adoptium/jdk.git"}
+fi
 BRANCH=${3:-"master"}
 SOLARIS=${4:-"normal"}
 
