@@ -1,0 +1,27 @@
+From 17cfcb02ad0e27c6afd454606155bc722f2fac99 Mon Sep 17 00:00:00 2001
+From: Andrew Leonard <andrew.m.leonard@ibm.com>
+Date: Fri, 16 Oct 2026 10:02:16 +0100
+Subject: Patch for JDK-8379499 [AIX] headless-only build of libjawt.so fails
+
+Signed-off-by: Andrew Leonard <andrew.m.leonard@ibm.com>
+---
+ make/lib/Awt2dLibraries.gmk | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/make/lib/Awt2dLibraries.gmk b/make/lib/Awt2dLibraries.gmk
+index beae39a3ef..5e142e8bac 100644
+--- a/make/lib/Awt2dLibraries.gmk
++++ b/make/lib/Awt2dLibraries.gmk
+@@ -744,6 +744,9 @@ else # not windows
+       ifeq ($(call isTargetOs, linux), true)
+         JAWT_CFLAGS += -DHEADLESS
+       endif
++      ifeq ($(call isTargetOs, aix), true)
++        JAWT_CFLAGS += -DHEADLESS
++      endif
+     endif
+   endif
+ 
+-- 
+2.52.0
+
