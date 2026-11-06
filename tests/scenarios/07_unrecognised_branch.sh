@@ -1,7 +1,7 @@
 #!/bin/bash
-# An upstream branch whose name matches none of the known patterns (a port, a project or an
-# experimental branch) is still rebased and pushed to the mirror, but gets no release or dev
-# branch and no _adopt tags. The job does not fail.
+# An upstream branch whose name is not a version (a port, a project) is still rebased and pushed.
+# Master-shape tags seen from it belong to the default-branch run, so nothing is created for it.
+# The job does not fail.
 source "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 setup_scenario jdk21u
 

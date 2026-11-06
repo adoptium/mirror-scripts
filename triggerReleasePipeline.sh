@@ -66,8 +66,11 @@ echo "Latest GA tag: ${latestGaTag}"
 gaTagCommitSHA=$(git ls-remote --tags "${ADOPTIUM_REPO}" ${latestGaTag}^{} | tr -s "\t " " " | cut -d" " -f1)
 echo "$latestGaTag commit SHA: ${gaTagCommitSHA}"
 
-# Get all non"-ga" tags pointing at gaTagCommitSHA and sort by reverse version string to get the latest
-scmReferenceLatest=$(git ls-remote --tags "${ADOPTIUM_REPO}" | grep "\^{}" | grep "${gaTagCommitSHA}" | tr -s "\t " " " | cut -d" " -f2 | sed "s,refs/tags/,," | sed "s,\^{},," | grep -v "\-ga" | sort -V -r | head -1)
+# Get all non"-ga" tags pointing at gaTagCommitSHA and sort by reverse version string to get the latest.
+# Branch fork point tags (jdk-M.0.V.P+0, jdk8uNNN-b00[-aarch32-<date>]) are excluded: they are never
+# mirrored or _adopt tagged, and upstream puts the next version's fork point tag on the GA commit,
+# which would otherwise sort highest (for example jdk-21.0.13.0.2+0 beats jdk-21.0.13+9).
+scmReferenceLatest=$(git ls-remote --tags "${ADOPTIUM_REPO}" | grep "\^{}" | grep "${gaTagCommitSHA}" | tr -s "\t " " " | cut -d" " -f2 | sed "s,refs/tags/,," | sed "s,\^{},," | grep -v "\-ga" | grep -Ev '\+0$|-b00($|-)' | sort -V -r | head -1)
 echo "Latest build tag pointing to ${gaTagCommitSHA}: ${scmReferenceLatest}"
 
 # append _adopt => release tag we use in adoptium
