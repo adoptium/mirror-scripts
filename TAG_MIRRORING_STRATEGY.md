@@ -80,7 +80,7 @@ A missing target is created **from the first tag that needs it**, with the Adopt
 
 ## DRY_RUN
 
-`DRY_RUN=true` prints "tag → target (create or merge)" for every tag and changes nothing in the mirror. Every push goes through `gitPush`, which only prints the push when `DRY_RUN=true`. The local workspace is still fetched. Run it against the live mirrors before the first real run.
+`DRY_RUN=true` prints "tag → target (create or merge)" for every tag and changes nothing in the mirror. Every push goes through `gitPush`, which only prints the push when `DRY_RUN=true`. The dev branches are also advanced in the local workspace (and the push printed), so merge conflicts show up. The local workspace is still fetched. Run it against the live mirrors before the first real run.
 
 ## Tests
 

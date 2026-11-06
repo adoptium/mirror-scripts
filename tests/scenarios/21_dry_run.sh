@@ -14,11 +14,17 @@ up_push
 before=$(git -C "$MIRROR" for-each-ref | md5)
 export DRY_RUN=true
 mirror_ok jdk21.0.13.1
+grep -q "DRY_RUN: jdk-21.0.13.0.2+1 → release_jdk21.0.13.0.2 (create from jdk-21.0.13.0.2+1)" "$LAST_LOG" \
+  || fail "expected the DRY_RUN plan line in the log"
+grep -q "DRY_RUN: dev_jdk21.0.13.0.2 would be advanced" "$LAST_LOG" || fail "expected the DRY_RUN dev line"
+# the default branch has a release branch, so its dev branch is advanced locally and only the push is printed
+up_commit master
+up_push
+mirror_ok master
+grep -q "DRY_RUN: git push origin dev" "$LAST_LOG" || fail "expected DRY_RUN to reach the dev branch push"
 unset DRY_RUN
 after=$(git -C "$MIRROR" for-each-ref | md5)
 [ "$before" == "$after" ] || fail "DRY_RUN changed the mirror repo"
-grep -q "DRY_RUN: jdk-21.0.13.0.2+1 → release_jdk21.0.13.0.2 (create from jdk-21.0.13.0.2+1)" "$LAST_LOG" \
-  || fail "expected the DRY_RUN plan line in the log"
 
 # the same run for real now creates it
 mirror_ok jdk21.0.13.1

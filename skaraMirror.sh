@@ -272,6 +272,14 @@ function mirrorBranchExists() {
   git rev-parse -q --verify "refs/remotes/origin/$1" > /dev/null
 }
 
+# Show the commits of the local branch $1 that are not on origin/$1 yet, as a graph
+function showNewCommits() {
+  git --no-pager log --graph --abbrev-commit \
+    --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' \
+    "origin/$1..$1"
+  echo
+}
+
 # Print the build tags (oldest first) in the repo's family that are merged into the given ref
 function listBuildTags() {
   git tag --merged "$1" | familyTags | filterExcluded | sortTags
@@ -502,7 +510,7 @@ function processTarget() {
   done
 
   if mirrorBranchExists "$target" ; then
-    git --no-pager log --oneline "origin/$target..$target"
+    showNewCommits "$target"
   fi
   tagSameCommitBuild "$target"
 
@@ -570,6 +578,16 @@ function dryRunTarget() {
     fi
     echo "DRY_RUN: $tag → $target ($action)"
   done
+  echo "DRY_RUN: $(devBranchFor "$target") would be advanced from $target"
+}
+
+# Print the dev branch that belongs to the mirror release branch $1: dev, or dev_<sfx> for release_<sfx>
+function devBranchFor() {
+  if [[ "$1" == "release" ]]; then
+    echo "dev"
+  else
+    echo "dev_${1#release_}"
+  fi
 }
 
 # Create or advance the dev branch that belongs to the mirror release branch $1:
@@ -580,14 +598,11 @@ function dryRunTarget() {
 function advanceDev() {
   local rel="$1" dev upstream="" base
 
+  dev=$(devBranchFor "$rel")
   if [[ "$rel" == "release" ]]; then
-    dev="dev"
     upstream="skara/${SKARA_DEFAULT_BRANCH}"
-  else
-    dev="dev_${rel#release_}"
-    if git rev-parse -q --verify "refs/remotes/skara/${rel#release_}" > /dev/null ; then
-      upstream="skara/${rel#release_}"
-    fi
+  elif git rev-parse -q --verify "refs/remotes/skara/${rel#release_}" > /dev/null ; then
+    upstream="skara/${rel#release_}"
   fi
 
   # Abort existing merge
@@ -611,7 +626,7 @@ function advanceDev() {
   mergeRef "Merging latest patches from $rel branch" "origin/$rel"
 
   if mirrorBranchExists "$dev" ; then
-    git --no-pager log --oneline "origin/$dev..$dev"
+    showNewCommits "$dev"
   fi
   gitPush origin "$dev" || exit 1
 }
@@ -738,6 +753,4 @@ cloneGitHubRepo
 addSkaralUpstream
 performMergeFromSkaraIntoGit
 mirrorNewTags
-if [[ "${DRY_RUN:-false}" != true ]]; then
-  mirrorDevBranches
-fi
+mirrorDevBranches
