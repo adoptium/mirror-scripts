@@ -487,6 +487,7 @@ function processTarget() {
   tags=$(tagsNeededFor "$target" "$tags" | sed '/^$/d')
   if [ -z "$tags" ]; then
     echo "Nothing new for $target"
+    gitPush origin "$target" || exit 1
     return 0
   fi
 
@@ -551,6 +552,10 @@ function mirrorNewTags() {
   candidates=$(listCandidateTags "$floor")
   if [[ -z "$candidates" ]]; then
     echo "No new build tags to mirror from $BRANCH"
+    # Ensure all local merges are pushed, in case an earlier run was interrupted before its push
+    if git rev-parse -q --verify "refs/heads/$RELEASE_BRANCH" > /dev/null ; then
+      gitPush origin "$RELEASE_BRANCH" || exit 1
+    fi
     return 0
   fi
 
