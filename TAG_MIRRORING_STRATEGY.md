@@ -11,7 +11,7 @@ The [`Jenkinsfile`](Jenkinsfile) runs `skaraMirror.sh` once per active upstream 
 1. **Target release branch.** `release` if `BRANCH` is the default branch, otherwise `release_$BRANCH`.
 2. **Floor.**
    - If the target exists, the latest `_adopt` tag on it, with `_adopt` removed.
-   - Otherwise (or if it has no `_adopt` tag), the latest build tag on `BRANCH`.
+   - Otherwise (or if it has no `_adopt` tag), look at the latest build tag on `BRANCH`. If the release branch that tag belongs to already has an `_adopt` tag, that is the floor (catch-up run). If not, the floor is the latest build tag itself (bootstrap).
 3. **Candidates.** Tags visible on `BRANCH` from the floor onwards, oldest first, with no `<tag>_adopt` anywhere in the mirror repo. For each one:
    - **Shape of the target release branch:** merge it into the target and tag it `<tag>_adopt`.
    - **Another shape:** work out its own release branch from the tag (see below).
@@ -65,7 +65,7 @@ A missing target is created **from the first tag that needs it**, with the Adopt
 
 - A new release branch starts at its first tag. Earlier tags on the same line are never back-filled.
 - A first run starts at the floor, so old history (jdk8u below 8u212, old `.1` branches) is out of scope.
-- A release branch with no `_adopt` tag at all (a new repo, or jdk27u today, where `_adopt` tags only live on `release_*`) takes only the newest tag on its first run.
+- A release branch with no `_adopt` tag at all (a new repo, or jdk27u today, where `_adopt` tags only live on `release_*`) takes only the newest tag on its first run. Once that tag's release branch has an `_adopt` tag, later runs catch up from it, so several new builds in one interval are all mirrored.
 
 ## Examples
 
