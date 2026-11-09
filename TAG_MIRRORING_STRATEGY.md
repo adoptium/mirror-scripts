@@ -2,7 +2,7 @@
 
 How [`skaraMirror.sh`](skaraMirror.sh) decides which upstream build tags to mirror, and into which Adoptium mirror branch each one goes.
 
-Upstream branch names are not a reliable key for tags. For example, in jdk21u the tags `jdk-21.0.13.0.2+1` and `jdk-21.0.13.0.3+1` only appear on a branch named `jdk21.0.13.1`. So the **tag** chooses the mirror branch. The upstream branch being processed only decides which tags are visible.
+Upstream branch names are not a reliable key for tags. A build tag is visible from every branch that contains its commit, so the same tag can be seen from several branches, depending on where each branch was forked or merged. For example, in jdk21u the tags `jdk-21.0.13.0.2+1` and `jdk-21.0.13.0.3+1` were merged into `master`, and `jdk21.0.13.1` forked from `jdk-21.0.13.0.3+1`, so both branches see them. So the **tag** chooses the mirror branch. The upstream branch being processed only decides which tags are visible.
 
 ## The process
 
@@ -72,7 +72,7 @@ A missing target is created **from the first tag that needs it**, with the Adopt
 | Run | Result |
 |---|---|
 | jdk21u `BRANCH=master`, `release` last at `jdk-21.0.13+9_adopt`, then `jdk-21.0.14+1` appears | `jdk-21.0.14+1` is merged into `release` and `_adopt` tagged. |
-| jdk21u `BRANCH=jdk21.0.13.1` | `jdk-21.0.13.0.2+1` creates `release_jdk21.0.13.0.2` from itself. |
+| jdk21u `BRANCH=master` or `BRANCH=jdk21.0.13.1` (both see the tag) | `jdk-21.0.13.0.2+1` creates `release_jdk21.0.13.0.2` from itself. |
 | jdk27u `BRANCH=jdk27.0.1`, first run | `release_jdk27.0.1` is created from `jdk-27.0.1+9`. Later runs find nothing. |
 | jdk27u `BRANCH=jdk27.0.2`, no tags yet | Quiet exit. |
 | jdk8u `BRANCH=openjdk8u504` | `release_openjdk8u504` is created from the latest `jdk8u504-bNN` tag. |
