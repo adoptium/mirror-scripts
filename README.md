@@ -31,6 +31,14 @@ flowchart TD
 
 ```
 
+# Which upstream tags each branch mirrors
+
+Upstream branch names are not a reliable key for tags, so the **tag** chooses the mirror branch. For each active upstream branch the script takes the build tags visible from it that sort at or after the floor (the newest `_adopt` tag on the branch's release branch, or the latest build tag on the branch if there is none) and have no `_adopt` tag yet. It works out each tag's target mirror branch from the tag's shape, merges the tag there (or creates the branch from the tag itself, with the Adoptium patches) and creates `<tag>_adopt`. `master` is always mirrored last. `DRY_RUN=true` prints "tag → target" for each new tag and changes and pushes nothing: run it against the live mirrors before the first real run. See [TAG_MIRRORING_STRATEGY.md](TAG_MIRRORING_STRATEGY.md) for the rules, and `skaraMirror.sh` for the implementation (`listCandidateTags`, `targetBranchFor`, `tagAdopt`).
+
+# Tests
+
+`tests/run.sh` runs the mirror scenarios in `tests/scenarios/` against synthetic local git repositories, with no network access. It also runs on pull requests (`.github/workflows/mirror-script-tests.yml`). To add a scenario, copy an existing file in `tests/scenarios/` and see `tests/lib.sh` for the helpers.
+
 # Release trigger scripts and process
 
 - triggerReleasePipeline.sh runs by Jenkins job build-scripts/utils/releaseTrigger_jdkXXu and only run by scheduler "H * 10-25 1,3,4,7,9,10 *"

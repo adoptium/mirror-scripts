@@ -108,11 +108,15 @@ pipeline {
                             }
                         }
 
-                        // Ensure the default branch is always included
-                        branches.add(defaultBranch)
+                        // The default branch is always included, and always mirrored last, after all
+                        // the other branches (see TAG_MIRRORING_STRATEGY.md, "Paired branches").
+                        // 'branches' keeps insertion order (for-each-ref is alphabetical).
+                        branches.remove(defaultBranch)
+                        def orderedBranches = branches.toList()
+                        orderedBranches.add(defaultBranch)
 
-                        echo "Active branches to mirror: ${branches.join(', ')}"
-                        env.BRANCHES_TO_MIRROR = branches.join(' ')
+                        echo "Active branches to mirror: ${orderedBranches.join(', ')}"
+                        env.BRANCHES_TO_MIRROR = orderedBranches.join(' ')
                         env.DEFAULT_BRANCH     = defaultBranch
                     } finally {
                         // Always clean up the temporary bare clone
