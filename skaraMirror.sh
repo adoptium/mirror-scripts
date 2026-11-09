@@ -469,7 +469,7 @@ function tagSameCommitBuild() {
     return 0
   fi
   echo "Current build tag commit is same as previous build tag commit: ${prevTag} == ${currentTag}"
-  if [ -n "$(git tag -l "${prevTag}_adopt")" ] && [ -z "$(git tag -l "${currentTag}_adopt")" ]; then
+  if [ "$(targetBranchFor "$currentTag")" == "$target" ] && [ -n "$(git tag -l "${prevTag}_adopt")" ] && [ -z "$(git tag -l "${currentTag}_adopt")" ]; then
     echo "Tagging new current $target tag ${currentTag}_adopt which is same commit as the previous ${prevTag}_adopt"
     tagAdopt "$currentTag" "Merged ${currentTag} into $target"
   fi
@@ -487,13 +487,13 @@ function processTarget() {
   tags=$(tagsNeededFor "$target" "$tags" | sed '/^$/d')
   if [ -z "$tags" ]; then
     echo "Nothing new for $target"
-    gitPush origin "$target" || exit 1
     return 0
   fi
 
   if mirrorBranchExists "$target" ; then
     echo "Target $target exists, merging: $(echo $tags)"
     git checkout -f -B "$target" "origin/$target" || exit 1
+    applyAdoptiumPatches
   else
     first=$(printf '%s\n' "$tags" | head -n 1)
     tags=$(printf '%s\n' "$tags" | tail -n +2)
