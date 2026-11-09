@@ -527,7 +527,7 @@ function processTarget() {
 # Find the new tags visible from the upstream branch, and mirror them into their target branches.
 # Sets TOUCHED_TARGETS to the mirror release branches created or advanced.
 function mirrorNewTags() {
-  local floor candidates targets target tags
+  local floor newest newestTarget candidates targets target tags
 
   TOUCHED_TARGETS=""
   CREATED_BASES=""
@@ -539,10 +539,21 @@ function mirrorNewTags() {
   git fetch --all --tags
 
   # The floor is the latest _adopt tag on the release branch. If the release branch does not
-  # exist, or holds no _adopt tag, it is the latest build tag on the upstream branch.
+  # exist, or holds no _adopt tag, the newest build tag on the upstream branch decides: if its
+  # tag-derived target already has an _adopt baseline, that is the floor (catch-up run), otherwise
+  # the target is new and the floor is the newest build tag itself (bootstrap).
   floor=$(latestAdoptOn "$RELEASE_BRANCH")
   if [ -z "$floor" ]; then
-    floor=$(listBuildTags "$VISIBLE_REF" | tail -n 1)
+    newest=$(listBuildTags "$VISIBLE_REF" | tail -n 1)
+    if [ -n "$newest" ]; then
+      newestTarget=$(targetBranchFor "$newest")
+      if [ -n "$newestTarget" ]; then
+        floor=$(latestAdoptOn "$newestTarget")
+      fi
+    fi
+    if [ -z "$floor" ]; then
+      floor="$newest"
+    fi
   fi
   echo "Floor for $RELEASE_BRANCH: ${floor:-<none>}"
   if [ -z "$floor" ]; then
@@ -552,9 +563,16 @@ function mirrorNewTags() {
   candidates=$(listCandidateTags "$floor")
   if [[ -z "$candidates" ]]; then
     echo "No new build tags to mirror from $BRANCH"
-    # Ensure all local merges are pushed, in case an earlier run was interrupted before its push
+    # Ensure all local merges are pushed, in case an earlier run was interrupted before its push.
+    # Only recover a local branch whose remote branch is absent or an ancestor of it; a stale or
+    # diverged local branch would be rejected as non-fast-forward, so it is skipped.
     if git rev-parse -q --verify "refs/heads/$RELEASE_BRANCH" > /dev/null ; then
-      gitPush origin "$RELEASE_BRANCH" || exit 1
+      if ! mirrorBranchExists "$RELEASE_BRANCH" \
+          || git merge-base --is-ancestor "refs/remotes/origin/$RELEASE_BRANCH" "refs/heads/$RELEASE_BRANCH" ; then
+        gitPush origin "$RELEASE_BRANCH" || exit 1
+      else
+        echo "Local $RELEASE_BRANCH is behind or diverged from origin/$RELEASE_BRANCH, not pushing it"
+      fi
     fi
     return 0
   fi
